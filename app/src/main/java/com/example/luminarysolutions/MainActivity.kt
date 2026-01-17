@@ -22,7 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,8 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.luminarysolutions.LoginScreen
-import com.example.luminarysolutions.ui.home.HomeScreen
+import com.example.luminarysolutions.ui.dashboard.CampaignDashboardScreen
 import com.example.luminarysolutions.ui.login.LoginViewModel
 import com.example.luminarysolutions.ui.navigation.Routes
 import com.example.luminarysolutions.ui.register.RegisterScreen
@@ -90,7 +88,9 @@ class MainActivity : ComponentActivity() {
 
 
                     composable(Routes.HOME) {
-                        HomeScreen()
+                        CampaignDashboardScreen(
+                            onCampaignSelected = {}
+                        )
                     }
                 }
             }
