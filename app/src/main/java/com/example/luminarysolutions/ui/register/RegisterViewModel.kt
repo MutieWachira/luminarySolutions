@@ -29,6 +29,10 @@ class RegisterViewModel(
     private val _registerSuccess = mutableStateOf(false)
     val registerSuccess: State<Boolean> = _registerSuccess
 
+    private val _loginSuccess = mutableStateOf(false)
+    val loginSuccess: State<Boolean> = _loginSuccess
+
+
     fun onEmailChange(value: String) {
         _email.value = value
     }
@@ -75,5 +79,8 @@ class RegisterViewModel(
                 _errorMessage.value = it.message ?: "Registration failed"
             }
         }
+    }
+    fun onLoginClick() {
+        _registerSuccess.value = false
     }
 }
