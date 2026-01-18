@@ -34,7 +34,7 @@ class LoginViewModel(
         _password.value = newPassword
     }
 
-    fun onLoginClick() {
+    fun onLoginClick(onLoginSuccess: () -> Unit) {
         _errorMessage.value = ""
 
         if (_email.value.isBlank() || _password.value.isBlank()) {
