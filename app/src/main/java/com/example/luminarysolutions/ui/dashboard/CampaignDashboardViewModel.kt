@@ -38,6 +38,22 @@ class CampaignDashboardViewModel : ViewModel() {
                 amountRaised = 49000,
                 goalAmount = 50000,
                 imageRes= R.drawable.medicalcampaign
+            ),
+            Campaign(
+                id = "3",
+                title = "Medical Support Fund",
+                description = "Supporting emergency medical treatments",
+                amountRaised = 49000,
+                goalAmount = 50000,
+                imageRes= R.drawable.medicalcampaign
+            ),
+            Campaign(
+                id = "4",
+                title = "Medical Support Fund",
+                description = "Supporting emergency medical treatments",
+                amountRaised = 49000,
+                goalAmount = 50000,
+                imageRes= R.drawable.medicalcampaign
             )
         )
         _isLoading.value = false

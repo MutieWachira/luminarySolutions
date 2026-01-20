@@ -19,6 +19,8 @@ materialIcons = "1.4.0"
 firebaseAuthKtx = "24.0.1"
 runtime = "1.10.1"
 foundationVersion = "1.10.1"
+uiGraphics = "1.10.1"
+foundationLayoutVersion = "1.10.1"
 
 [libraries]
 androidx-compose-material-icons = {group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIcons"}
@@ -45,6 +47,8 @@ androidx-compose-ui-text = { group = "androidx.compose.ui", name = "ui-text", ve
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
 androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtime" }
 androidx-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundationVersion" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", version.ref = "uiGraphics" }
+androidx-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayoutVersion" }
 
 
 [plugins]
