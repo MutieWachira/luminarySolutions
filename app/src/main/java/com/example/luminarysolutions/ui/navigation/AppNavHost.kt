@@ -2,9 +2,13 @@ package com.example.luminarysolutions.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.luminarysolutions.ui.dashboard.CampaignDashboardScreen
+import com.example.luminarysolutions.ui.dashboard.CampaignDetailsScreen
 import com.example.luminarysolutions.ui.login.LoginScreen
 import com.example.luminarysolutions.ui.register.RegisterScreen
 import com.example.luminarysolutions.ui.splash.SplashScreen
@@ -63,5 +67,23 @@ fun AppNavHost(
 
         }
 
+        composable(Routes.HOME) {
+            CampaignDashboardScreen(
+                onCampaignSelected = { campaignId ->
+                    navController.navigate(Routes.campaignDetails(campaignId))
+                }
+            )
+        }
+
+        composable(
+            route = Routes.CAMPAIGN_DETAILS,
+            arguments = listOf(navArgument("campaignId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val campaignId = backStackEntry.arguments?.getString("campaignId") ?: ""
+            CampaignDetailsScreen(
+                campaignId = campaignId,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
     }
 }

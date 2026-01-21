@@ -4,6 +4,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import kotlinx.coroutines.launch
 
 class LoginViewModel(
@@ -25,6 +26,8 @@ class LoginViewModel(
     private val _loginSuccess = mutableStateOf(false)
     val loginSuccess: State<Boolean> = _loginSuccess
 
+    private val _isPasswordVisible = mutableStateOf(false)
+    val isPasswordVisible: State<Boolean> = _isPasswordVisible
 
     fun onEmailChange(newEmail: String) {
         _email.value = newEmail
@@ -34,15 +37,18 @@ class LoginViewModel(
         _password.value = newPassword
     }
 
-    fun onLoginClick(onLoginSuccess: () -> Unit) {
+    fun togglePasswordVisibility() {
+        _isPasswordVisible.value = !_isPasswordVisible.value
+    }
+
+    fun onLoginClick(OnLoginSuccess: () -> Unit) {
         _errorMessage.value = ""
 
         if (_email.value.isBlank() || _password.value.isBlank()) {
             _errorMessage.value = "Please fill in all fields"
             return
         }
-
-
+        
         _isLoading.value = true
 
         viewModelScope.launch {
@@ -55,19 +61,13 @@ class LoginViewModel(
 
             result.onSuccess {
                 _loginSuccess.value = true
+                OnLoginSuccess()
             }
 
             result.onFailure {
                 _errorMessage.value = it.message ?: "Login failed"
             }
         }
-    }
-    /**
-     * Call this function after the navigation has occurred to reset the login state,
-     * preventing re-navigation on configuration changes.
-     */
-    fun onNavigationComplete() {
-        _loginSuccess.value = false
     }
 }
 
