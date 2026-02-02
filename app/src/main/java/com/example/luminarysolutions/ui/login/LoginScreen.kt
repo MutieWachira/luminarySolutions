@@ -1,192 +1,222 @@
 package com.example.luminarysolutions.ui.login
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.luminarysolutions.R
-import com.example.luminarysolutions.ui.theme.LuminarySolutionsTheme
 
 @Composable
 fun LoginScreen(
-    viewModel: LoginViewModel = viewModel(),
     onLoginSuccess: () -> Unit,
-    onSignUpClick: () -> Unit
-){
-    val email by viewModel.email
-    val password by viewModel.password
-    val isLoading by viewModel.isLoading
-    val isPasswordVisible by viewModel.isPasswordVisible
-    val error by viewModel.errorMessage
+    viewModel: LoginViewModel = viewModel()
+) {
+    val state = viewModel.uiState
 
     LoginScreenContent(
-        email = email,
+        state = state,
+        email = viewModel.email,
+        password = viewModel.password,
         onEmailChange = viewModel::onEmailChange,
-        password = password,
         onPasswordChange = viewModel::onPasswordChange,
-        isLoading = isLoading,
-        error = error,
-        isPasswordVisible = isPasswordVisible,
-        onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
-        onLoginClick = { viewModel.onLoginClick(onLoginSuccess) },
-        onSignUpClick = onSignUpClick
+        onLoginClick = { viewModel.login(viewModel.email, viewModel.password) },
+        onLoginSuccess = onLoginSuccess,
+        onForgotPassword = { viewModel.resetPassword(viewModel.email) }
     )
 }
 
 @Composable
 fun LoginScreenContent(
+    state: LoginUiState,
     email: String,
-    onEmailChange: (String) -> Unit,
     password: String,
+    onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
-    isLoading: Boolean,
-    error: String,
-    isPasswordVisible: Boolean,
-    onTogglePasswordVisibility: () -> Unit,
     onLoginClick: () -> Unit,
-    onSignUpClick: () -> Unit
+    onLoginSuccess: () -> Unit,
+    onForgotPassword: () -> Unit
 ) {
-    Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-    ) { innerPadding ->
+    // Fade-in animation
+    val alpha by animateFloatAsState(targetValue = 1f, animationSpec = tween(800))
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // Background image
+        Image(
+            painter = painterResource(id = R.drawable.loginimage),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Dark overlay
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .background(Color.Black.copy(alpha = 0.55f))
         )
+
+        // Login form
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp), // Apply the Scaffold's inner padding
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(24.dp)
+                .alpha(alpha),
             verticalArrangement = Arrangement.Center
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.loginimage),
-                contentDescription = "Login Illustration",
-                modifier = Modifier
-                    .height(220.dp)
+
+            // Welcome text
+            Text(
+                text = "Welcome Back!",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Please login to continue",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                text = "Welcome Back",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Sign in to continue helping others",
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
+            // Email field
             OutlinedTextField(
                 value = email,
                 onValueChange = onEmailChange,
                 label = { Text("Email") },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email
-                ),
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = onPasswordChange,
-                label = { Text("Password") },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password
-                ),
-                singleLine = true,
-                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    IconButton(onClick = onTogglePasswordVisibility) {
-                        Icon(
-                            imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = "Toggle password visibility"
-                        )
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-
-
-            if (error.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.fillMaxWidth() // To ensure it respects the column's alignment
+                modifier = Modifier
+                    .fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.White.copy(alpha = 0.9f),
+                    unfocusedContainerColor = Color.White.copy(alpha = 0.9f),
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black,
+                    cursorColor = Color.Black,
+                    focusedLabelColor = Color(0xFF00FF00),
+                    unfocusedLabelColor = Color.Black
                 )
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Password field with toggle & forgot password
+            var passwordVisible by remember { mutableStateOf(false) }
+
+            Column {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Password") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    visualTransformation =
+                        if (passwordVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector =
+                                    if (passwordVisible) Icons.Default.Visibility
+                                    else Icons.Default.VisibilityOff,
+                                contentDescription = "Toggle password visibility"
+                            )
+                        }
+                    },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White.copy(alpha = 0.9f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.9f),
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        cursorColor = Color.Black,
+                        focusedLabelColor = Color(0xFF00FF00),
+                        unfocusedLabelColor = Color.Black
+                    )
+                )
+
+                // Forgot password aligned right
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    TextButton(
+                        onClick = onForgotPassword,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        Text("Forgot password?", color = Color.White)
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
+            // Error message
+            if (state is LoginUiState.Error) {
+                Text(
+                    text = state.message,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // Login button
             Button(
                 onClick = onLoginClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                enabled = !isLoading
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state !is LoginUiState.Loading
             ) {
-                if (isLoading) {
+                if (state is LoginUiState.Loading) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp
                     )
                 } else {
                     Text("Login")
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            TextButton(onClick = onSignUpClick) {
-                Text("Don’t have an account? Sign Up")
-            }
         }
     }
 
+    // Trigger success callback
+    if (state is LoginUiState.Success) {
+        LaunchedEffect(state) {
+            onLoginSuccess()
+        }
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
 fun LoginScreenPreview() {
-    LuminarySolutionsTheme {
-        LoginScreenContent(
-            email = "email@example.com",
-            onEmailChange = {},
-            password = "password",
-            onPasswordChange = {},
-            isLoading = false,
-            error = "",
-            isPasswordVisible = false,
-            onTogglePasswordVisibility = {},
-            onLoginClick = {},
-            onSignUpClick = {}
-        )
-    }
+    LoginScreenContent(
+        state = LoginUiState.Idle,
+        email = "",
+        password = "",
+        onEmailChange = {},
+        onPasswordChange = {},
+        onLoginClick = {},
+        onLoginSuccess = {},
+        onForgotPassword = {}
+    )
 }

@@ -1,10 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base application theme. -->
-    <style name="Theme.LuminarySolutions" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.LuminarySolutions" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- These now exist because we use MaterialComponents/AppCompat -->
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
 
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@android:color/black</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splashscreen</item>
         <item name="postSplashScreenTheme">@style/Theme.LuminarySolutions</item>
     </style>
+
 </resources>
