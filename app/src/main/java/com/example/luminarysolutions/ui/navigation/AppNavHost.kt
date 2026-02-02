@@ -2,88 +2,92 @@ package com.example.luminarysolutions.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavType
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
-import com.example.luminarysolutions.ui.dashboard.CampaignDashboardScreen
-import com.example.luminarysolutions.ui.dashboard.CampaignDetailsScreen
+import com.example.luminarysolutions.ui.auth.UserRole
+import com.example.luminarysolutions.ui.ceo.CEODashboardScreen
+import com.example.luminarysolutions.ui.ceo.CommunityScreen
+import com.example.luminarysolutions.ui.ceo.FinanceScreen
+import com.example.luminarysolutions.ui.ceo.PartnersScreen
+import com.example.luminarysolutions.ui.ceo.ProjectDetailsScreen
+import com.example.luminarysolutions.ui.ceo.ProjectsScreen
+import com.example.luminarysolutions.ui.ceo.models.ProjectUi
 import com.example.luminarysolutions.ui.login.LoginScreen
-import com.example.luminarysolutions.ui.register.RegisterScreen
-import com.example.luminarysolutions.ui.splash.SplashScreen
+import com.example.luminarysolutions.ui.login.LoginViewModel
 
 @Composable
 fun AppNavHost(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: LoginViewModel = viewModel()
 ) {
     val navController = rememberNavController()
 
     NavHost(
+        modifier = modifier,
         navController = navController,
-        startDestination = Routes.LOGIN,
-        modifier = modifier
+        startDestination = Screen.Login.route
     ) {
-        //navigation for splash screen
-        composable(Routes.SPLASH) {
-            SplashScreen(
-                onFinished = {
-                    navController.navigate(Routes.LOGIN) {
-                        popUpTo(Routes.SPLASH) { inclusive = true }
-                    }
-                }
-            )
-        }
-//navigation for login page
-        composable(Routes.LOGIN) {
+
+        // 🔹 Login screen
+        composable(Screen.Login.route) {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(Routes.HOME) {
-                        popUpTo(Routes.LOGIN) { inclusive = true }
+                    when (viewModel.role) {
+                        UserRole.CEO ->
+                            navController.navigate(Screen.CEODashboard.route) {
+                                popUpTo(Screen.Login.route) { inclusive = true }
+                                launchSingleTop = true
+                            }
+
+                        UserRole.IT_ADMIN -> navController.navigate(Screen.StaffDashboard.route)
+                        UserRole.VOLUNTEER -> navController.navigate(Screen.VolunteerDashboard.route)
+                        UserRole.DONOR -> navController.navigate(Screen.DonorDashboard.route)
+
+                        else -> navController.navigate(Screen.Login.route)
                     }
                 },
-                onSignUpClick = {
-                    navController.navigate(Routes.REGISTER){
-                        popUpTo(Routes.LOGIN) { inclusive = true }
-                    }
-                }
-
-            )
-        }
-        //navigation for signup page
-        composable(Routes.REGISTER) {
-            RegisterScreen(
-                onLoginClick = {
-                    navController.navigate(Routes.LOGIN){
-                        popUpTo(Routes.LOGIN) { inclusive = true }
-                    }
-                },
-                onRegisterSuccess = {
-                    navController.navigate(Routes.HOME) {
-                        popUpTo(Routes.REGISTER) { inclusive = true }
-                    }
-                }
-            )
-
-        }
-
-        composable(Routes.HOME) {
-            CampaignDashboardScreen(
-                onCampaignSelected = { campaignId ->
-                    navController.navigate(Routes.campaignDetails(campaignId))
-                }
+                viewModel = viewModel
             )
         }
 
-        composable(
-            route = Routes.CAMPAIGN_DETAILS,
-            arguments = listOf(navArgument("campaignId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val campaignId = backStackEntry.arguments?.getString("campaignId") ?: ""
-            CampaignDetailsScreen(
-                campaignId = campaignId,
-                onBackClick = { navController.popBackStack() }
+        // 🔹 CEO Dashboard
+        composable(Screen.CEODashboard.route) {
+            CEODashboardScreen(
+                navController = navController,
+                role = UserRole.CEO
             )
         }
+
+        // ✅ CEO MODULE ROUTES (so the buttons work)
+        composable(Screen.Projects.route) {
+            ProjectsScreen(navController = navController)
+        }
+
+        composable(Screen.Finance.route) {
+            FinanceScreen(navController = navController)
+        }
+
+        composable(Screen.Partners.route) {
+            PartnersScreen(navController = navController)
+        }
+
+        composable(Screen.Community.route) {
+            CommunityScreen(navController = navController)
+        }
+        composable(Screen.ProjectDetails.route) {
+            ProjectDetailsScreen(
+                navController = navController,
+                project = ProjectUi(
+                    "Clean Water Initiative",
+                    "Ongoing",
+                    120000,
+                    0.72f,
+                    "2 days ago"
+                )
+            )
+        }
+
     }
 }

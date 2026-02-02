@@ -1,3 +1,4 @@
+import org.gradle.kotlin.dsl.implementation
 
 
 plugins {
@@ -51,22 +52,19 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.compose.ui)
+    implementation("com.google.android.material:material:1.12.0")
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation(platform("com.google.firebase:firebase-bom:34.7.0"))
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-analytics")
     implementation("androidx.navigation:navigation-compose:2.8.0")
     implementation(libs.androidx.compose.foundation.layout)
     implementation(libs.androidx.glance)
+    implementation(platform("com.google.firebase:firebase-bom:32.2.2"))
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
     implementation(libs.androidx.compose.ui.text)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.runtime)
-    implementation(libs.androidx.material3)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.foundation.layout)
-    implementation(libs.androidx.foundation)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

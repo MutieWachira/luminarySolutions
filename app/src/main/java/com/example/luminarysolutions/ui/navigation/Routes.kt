@@ -1,11 +1,17 @@
 package com.example.luminarysolutions.ui.navigation
 
-object Routes {
-    const val SPLASH = "splash"
-    const val LOGIN = "login"
-    const val REGISTER = "register"
-    const val HOME = "dashboard"
-    const val CAMPAIGN_DETAILS = "campaign_details/{campaignId}"
+sealed class Screen(val route: String) {
+    object Login : Screen("login")
+    object CEODashboard : Screen("ceo_dashboard")
+    object StaffDashboard : Screen("staff_dashboard")
+    object VolunteerDashboard : Screen("volunteer_dashboard")
+    object DonorDashboard : Screen("donor_dashboard")
 
-    fun campaignDetails(campaignId: String) = "campaign_details/$campaignId"
+    //ceo module
+    object Projects : Screen("projects")
+    object Finance : Screen("finance")
+    object Partners : Screen("partners")
+    object Community : Screen("community")
+    object ProjectDetails : Screen("project_details")
+
 }

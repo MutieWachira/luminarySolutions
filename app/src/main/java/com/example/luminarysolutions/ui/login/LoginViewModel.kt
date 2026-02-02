@@ -1,73 +1,99 @@
 package com.example.luminarysolutions.ui.login
 
-import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import android.util.Log
-import kotlinx.coroutines.launch
+import com.example.luminarysolutions.ui.auth.UserRole
+import com.example.luminarysolutions.ui.auth.safeValueOf
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
-class LoginViewModel(
-    private val repository: AuthRepository = AuthRepository()
-) : ViewModel() {
+class LoginViewModel : ViewModel() {
 
-    private val _email = mutableStateOf("")
-    val email: State<String> = _email
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
 
-    private val _password = mutableStateOf("")
-    val password: State<String> = _password
 
-    private val _errorMessage = mutableStateOf("")
-    val errorMessage: State<String> = _errorMessage
+    var email by mutableStateOf("")
+        private set
 
-    private val _isLoading = mutableStateOf(false)
-    val isLoading: State<Boolean> = _isLoading
+    var password by mutableStateOf("")
+        private set
 
-    private val _loginSuccess = mutableStateOf(false)
-    val loginSuccess: State<Boolean> = _loginSuccess
 
-    private val _isPasswordVisible = mutableStateOf(false)
-    val isPasswordVisible: State<Boolean> = _isPasswordVisible
+    var uiState by mutableStateOf<LoginUiState>(LoginUiState.Idle)
+        private set
 
-    fun onEmailChange(newEmail: String) {
-        _email.value = newEmail
+    var role by mutableStateOf<UserRole?>(null)
+        private set
+
+    fun onEmailChange(value: String) {
+        email = value
     }
 
-    fun onPasswordChange(newPassword: String) {
-        _password.value = newPassword
+    fun onPasswordChange(value: String) {
+        password = value
     }
 
-    fun togglePasswordVisibility() {
-        _isPasswordVisible.value = !_isPasswordVisible.value
-    }
 
-    fun onLoginClick(OnLoginSuccess: () -> Unit) {
-        _errorMessage.value = ""
+    fun login(email: String, password: String) {
 
-        if (_email.value.isBlank() || _password.value.isBlank()) {
-            _errorMessage.value = "Please fill in all fields"
+        if (email.isBlank() || password.isBlank()) {
+            uiState = LoginUiState.Error("Fields cannot be empty")
             return
         }
-        
-        _isLoading.value = true
 
-        viewModelScope.launch {
-            val result = repository.login(
-                email = _email.value,
-                password = _password.value
-            )
+        uiState = LoginUiState.Loading
 
-            _isLoading.value = false
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnSuccessListener { result ->
 
-            result.onSuccess {
-                _loginSuccess.value = true
-                OnLoginSuccess()
+                val uid = result.user?.uid
+                if (uid == null) {
+                    uiState = LoginUiState.Error("User not found")
+                    return@addOnSuccessListener
+                }
+
+                db.collection("users")
+                    .document(uid)
+                    .get()
+                    .addOnSuccessListener { doc ->
+                        val roleString = doc.getString("role")
+                        role = safeValueOf(roleString)
+                        uiState = LoginUiState.Success
+                    }
+                    .addOnFailureListener {
+                        uiState = LoginUiState.Error("Failed to fetch role")
+                    }
             }
-
-            result.onFailure {
-                _errorMessage.value = it.message ?: "Login failed"
+            .addOnFailureListener { exception ->
+                uiState = LoginUiState.Error(
+                    exception.localizedMessage ?: "Login failed"
+                )
             }
-        }
     }
+
+    fun resetPassword(email: String) {
+        if (email.isBlank()) {
+            uiState = LoginUiState.Error("Enter your email to reset password")
+            return
+        }
+
+        auth.sendPasswordResetEmail(email)
+            .addOnSuccessListener {
+                uiState = LoginUiState.Error(
+                    "Password reset email sent"
+                )
+            }
+            .addOnFailureListener { exception ->
+                uiState = LoginUiState.Error(
+                    exception.localizedMessage ?: "Failed to send reset email"
+                )
+            }
+    }
+
 }
+
+
 
