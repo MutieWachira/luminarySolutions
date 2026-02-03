@@ -13,7 +13,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {//Entry point for compose and defines the compose UI tree
             LuminarySolutionsTheme {
                 AppNavHost(

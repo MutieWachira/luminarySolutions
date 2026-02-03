@@ -7,12 +7,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.luminarysolutions.ui.auth.UserRole
+import com.example.luminarysolutions.ui.ceo.ApprovalsScreen
 import com.example.luminarysolutions.ui.ceo.CEODashboardScreen
 import com.example.luminarysolutions.ui.ceo.CommunityScreen
+import com.example.luminarysolutions.ui.ceo.ExpensesScreen
 import com.example.luminarysolutions.ui.ceo.FinanceScreen
+import com.example.luminarysolutions.ui.ceo.PartnerDetailsScreen
+import com.example.luminarysolutions.ui.ceo.PartnersDonorsScreen
 import com.example.luminarysolutions.ui.ceo.PartnersScreen
 import com.example.luminarysolutions.ui.ceo.ProjectDetailsScreen
 import com.example.luminarysolutions.ui.ceo.ProjectsScreen
+import com.example.luminarysolutions.ui.ceo.ReportsScreen
 import com.example.luminarysolutions.ui.ceo.models.ProjectUi
 import com.example.luminarysolutions.ui.login.LoginScreen
 import com.example.luminarysolutions.ui.login.LoginViewModel
@@ -88,6 +93,13 @@ fun AppNavHost(
                 )
             )
         }
+        composable(Screen.Approvals.route) { ApprovalsScreen(navController) }
+        composable(Screen.Expenses.route) { ExpensesScreen(navController) }
+        composable(Screen.Reports.route) { ReportsScreen(navController) }
+        composable(Screen.Partners.route) { PartnersDonorsScreen(navController) }
+        composable(Screen.PartnerDetails.route) { PartnerDetailsScreen(navController) }
+
+
 
     }
 }
