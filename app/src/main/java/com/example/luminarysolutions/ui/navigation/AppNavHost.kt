@@ -1,11 +1,14 @@
 package com.example.luminarysolutions.ui.navigation
 
+import android.R.attr.type
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.luminarysolutions.ui.auth.UserRole
 import com.example.luminarysolutions.ui.ceo.ApprovalsScreen
 import com.example.luminarysolutions.ui.ceo.CEODashboardScreen
@@ -65,7 +68,7 @@ fun AppNavHost(
             )
         }
 
-        // ✅ CEO MODULE ROUTES (so the buttons work)
+        // CEO MODULE ROUTES (so the buttons work)
         composable(Screen.Projects.route) {
             ProjectsScreen(navController = navController)
         }
@@ -97,8 +100,13 @@ fun AppNavHost(
         composable(Screen.Expenses.route) { ExpensesScreen(navController) }
         composable(Screen.Reports.route) { ReportsScreen(navController) }
         composable(Screen.Partners.route) { PartnersDonorsScreen(navController) }
-        composable(Screen.PartnerDetails.route) { PartnerDetailsScreen(navController) }
-
+        composable(
+            route = Screen.PartnerDetails.route,
+            arguments = listOf(navArgument("partnerId"){type = NavType.StringType})
+        ){backStackEntry ->
+            val partnerId = backStackEntry.arguments?.getString("partnerId") ?: ""
+            PartnerDetailsScreen(navController=navController, partnerId=partnerId)
+        }
 
 
     }

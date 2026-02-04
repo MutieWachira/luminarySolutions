@@ -22,7 +22,7 @@ import kotlin.math.roundToInt
 @Composable
 fun ProjectsScreen(navController: NavController) {
 
-    // ✅ Make projects mutable so we can add new ones
+    //  Make projects mutable so we can add new ones
     val projects = remember {
         mutableStateListOf(
             ProjectUi("Clean Water Initiative", "Ongoing", 120000, 0.72f, "2 days ago"),
@@ -34,7 +34,7 @@ fun ProjectsScreen(navController: NavController) {
 
     var selectedFilter by remember { mutableStateOf(ProjectFilter.ALL) }
 
-    // ✅ Dialog state
+    // Dialog state
     var showAddDialog by remember { mutableStateOf(false) }
 
     val filteredProjects = remember(selectedFilter, projects) {
@@ -84,20 +84,20 @@ fun ProjectsScreen(navController: NavController) {
                 .padding(16.dp)
         ) {
 
-            // ✅ KPI Row
+            //  KPI Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 MiniKpiCard(title = "Total", value = total.toString(), modifier = Modifier.weight(1f))
                 MiniKpiCard(title = "Ongoing", value = ongoing.toString(), modifier = Modifier.weight(1f))
-                MiniKpiCard(title = "Completed", value = completed.toString(), modifier = Modifier.weight(1f))
+                MiniKpiCard(title = "Complete", value = completed.toString(), modifier = Modifier.weight(1f))
                 MiniKpiCard(title = "At Risk", value = atRisk.toString(), modifier = Modifier.weight(1f))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ✅ Filter Chips
+            // Filter Chips
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = selectedFilter == ProjectFilter.ALL,
@@ -123,7 +123,7 @@ fun ProjectsScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ✅ Projects List
+            //  Projects List
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(filteredProjects) { project ->
                     ProjectCard(
@@ -137,7 +137,7 @@ fun ProjectsScreen(navController: NavController) {
         }
     }
 
-    // ✅ Add Project Dialog
+    // Add Project Dialog
     if (showAddDialog) {
         AddProjectDialog(
             onDismiss = { showAddDialog = false },
@@ -315,7 +315,7 @@ private fun StatusChip(status: String) {
     )
 }
 
-// ✅ UI model (keep it here for now, later we move to models/)
+//  UI model (keep it here for now, later we move to models/)
 data class ProjectUi(
     val name: String,
     val status: String,
