@@ -11,9 +11,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.example.luminarysolutions.ui.navigation.Screen
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -21,15 +24,16 @@ fun PartnersDonorsScreen(navController: NavController) {
 
     val allContacts = remember {
         mutableStateListOf(
-            PartnerUi("LumiSphere Fund", "Donor", "Active", "KES 3,200,000", "Last contact: Today"),
-            PartnerUi("UNICEF Kenya", "Partner", "Active", "MoU signed", "Last contact: Yesterday"),
-            PartnerUi("Safaricom Foundation", "Donor", "Active", "KES 1,500,000", "Last contact: 2 days ago"),
-            PartnerUi("County Government", "Partner", "Pending", "Proposal submitted", "Last contact: 1 week ago")
+            PartnerUi(UUID.randomUUID().toString(),"LumiSphere Fund","Donor","Active","KES 3,200,000","Last contact: Today"),
+            PartnerUi(UUID.randomUUID().toString(),"UNICEF Kenya","Partner","Active","MoU signed","Last contact: Yesterday"),
+            PartnerUi(UUID.randomUUID().toString(),"Safaricom Foundation","Donor","Active","KES 1,500,000","Last contact: 2 days ago"),
+            PartnerUi(UUID.randomUUID().toString(),"County Government","Partner","Pending","Proposal submitted","Last contact: 1 week ago")
         )
     }
 
     var query by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(ContactFilter.ALL) }
+    var showAddDialog by remember { mutableStateOf(false) }
 
     val filtered = remember(query, selectedFilter, allContacts) {
         allContacts
@@ -55,7 +59,7 @@ fun PartnersDonorsScreen(navController: NavController) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { /* later: add partner/donor */ }) {
+            FloatingActionButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add")
             }
         }
@@ -69,7 +73,6 @@ fun PartnersDonorsScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            // Search
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -79,7 +82,6 @@ fun PartnersDonorsScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Filters
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = selectedFilter == ContactFilter.ALL,
@@ -98,8 +100,6 @@ fun PartnersDonorsScreen(navController: NavController) {
                 )
             }
 
-            Spacer(Modifier.height(4.dp))
-
             Text(
                 "Contacts (${filtered.size})",
                 style = MaterialTheme.typography.titleLarge,
@@ -111,13 +111,22 @@ fun PartnersDonorsScreen(navController: NavController) {
                     PartnerCard(
                         partner = partner,
                         onClick = {
-                            // UI-only navigation for now
-                            navController.navigate(Screen.PartnerDetails.route)
+                            navController.navigate(Screen.PartnerDetails.createRoute(partner.id))
                         }
                     )
                 }
             }
         }
+    }
+
+    if (showAddDialog) {
+        AddPartnerDonorDialog(
+            onDismiss = { showAddDialog = false },
+            onSave = { newContact ->
+                allContacts.add(0, newContact)
+                showAddDialog = false
+            }
+        )
     }
 }
 
@@ -141,12 +150,125 @@ private fun PartnerCard(partner: PartnerUi, onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddPartnerDonorDialog(
+    onDismiss: () -> Unit,
+    onSave: (PartnerUi) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var valueOrNote by remember { mutableStateOf("") }
+
+    val typeOptions = listOf("Partner", "Donor")
+    var type by remember { mutableStateOf("Partner") }
+    var typeMenuOpen by remember { mutableStateOf(false) }
+
+    val statusOptions = listOf("Active", "Pending", "Inactive")
+    var status by remember { mutableStateOf("Active") }
+    var statusMenuOpen by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Partner / Donor") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = typeMenuOpen,
+                    onExpandedChange = { typeMenuOpen = !typeMenuOpen }
+                ) {
+                    OutlinedTextField(
+                        value = type,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Type") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuOpen) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = typeMenuOpen, onDismissRequest = { typeMenuOpen = false }) {
+                        typeOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = { type = option; typeMenuOpen = false }
+                            )
+                        }
+                    }
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = statusMenuOpen,
+                    onExpandedChange = { statusMenuOpen = !statusMenuOpen }
+                ) {
+                    OutlinedTextField(
+                        value = status,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Status") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusMenuOpen) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = statusMenuOpen, onDismissRequest = { statusMenuOpen = false }) {
+                        statusOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = { status = option; statusMenuOpen = false }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = valueOrNote,
+                    onValueChange = { valueOrNote = it },
+                    label = { Text("Value / Note (Funds, MoU, etc.)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (name.isBlank()) return@TextButton
+                    onSave(
+                        PartnerUi(
+                            id = UUID.randomUUID().toString(),
+                            name = name.trim(),
+                            type = type,
+                            status = status,
+                            valueOrNote = if (valueOrNote.isBlank()) "—" else valueOrNote.trim(),
+                            lastContact = "Last contact: Just now"
+                        )
+                    )
+                }
+            ) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
 private enum class ContactFilter { ALL, PARTNERS, DONORS }
 
-private data class PartnerUi(
+data class PartnerUi(
+    val id: String,
     val name: String,
-    val type: String, // "Partner" or "Donor"
-    val status: String, // Active/Pending/Inactive
-    val valueOrNote: String, // e.g., funds or MoU status
+    val type: String,
+    val status: String,
+    val valueOrNote: String,
     val lastContact: String
 )
+
+
+
+@Preview
+@Composable
+fun PartnersDonorsScreenPreview() {
+    PartnersDonorsScreen(navController = rememberNavController())
+}
