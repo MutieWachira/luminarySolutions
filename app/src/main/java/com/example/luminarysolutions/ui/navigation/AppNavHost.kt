@@ -1,6 +1,5 @@
 package com.example.luminarysolutions.ui.navigation
 
-import android.R.attr.type
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -11,17 +10,17 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.luminarysolutions.ui.auth.UserRole
 import com.example.luminarysolutions.ui.ceo.ApprovalsScreen
+import com.example.luminarysolutions.ui.ceo.BeneficiariesScreen
 import com.example.luminarysolutions.ui.ceo.CEODashboardScreen
 import com.example.luminarysolutions.ui.ceo.CommunityScreen
 import com.example.luminarysolutions.ui.ceo.ExpensesScreen
 import com.example.luminarysolutions.ui.ceo.FinanceScreen
+import com.example.luminarysolutions.ui.ceo.GrievancesScreen
 import com.example.luminarysolutions.ui.ceo.PartnerDetailsScreen
 import com.example.luminarysolutions.ui.ceo.PartnersDonorsScreen
-import com.example.luminarysolutions.ui.ceo.PartnersScreen
 import com.example.luminarysolutions.ui.ceo.ProjectDetailsScreen
 import com.example.luminarysolutions.ui.ceo.ProjectsScreen
 import com.example.luminarysolutions.ui.ceo.ReportsScreen
-import com.example.luminarysolutions.ui.ceo.models.ProjectUi
 import com.example.luminarysolutions.ui.login.LoginScreen
 import com.example.luminarysolutions.ui.login.LoginViewModel
 
@@ -38,7 +37,7 @@ fun AppNavHost(
         startDestination = Screen.Login.route
     ) {
 
-        // 🔹 Login screen
+        // 🔹 Login
         composable(Screen.Login.route) {
             LoginScreen(
                 onLoginSuccess = {
@@ -52,7 +51,6 @@ fun AppNavHost(
                         UserRole.IT_ADMIN -> navController.navigate(Screen.StaffDashboard.route)
                         UserRole.VOLUNTEER -> navController.navigate(Screen.VolunteerDashboard.route)
                         UserRole.DONOR -> navController.navigate(Screen.DonorDashboard.route)
-
                         else -> navController.navigate(Screen.Login.route)
                     }
                 },
@@ -64,50 +62,40 @@ fun AppNavHost(
         composable(Screen.CEODashboard.route) {
             CEODashboardScreen(
                 navController = navController,
-                role = UserRole.CEO
+                role = UserRole.CEO,
+                viewModel = viewModel
             )
         }
 
-        // CEO MODULE ROUTES (so the buttons work)
-        composable(Screen.Projects.route) {
-            ProjectsScreen(navController = navController)
-        }
+        // ✅ CEO Module Routes
+        composable(Screen.Projects.route) { ProjectsScreen(navController) }
+        composable(Screen.Finance.route) { FinanceScreen(navController) }
+        composable(Screen.Partners.route) { PartnersDonorsScreen(navController) } // ✅ only one partners screen
+        composable(Screen.Community.route) { CommunityScreen(navController) }
 
-        composable(Screen.Finance.route) {
-            FinanceScreen(navController = navController)
-        }
-
-        composable(Screen.Partners.route) {
-            PartnersScreen(navController = navController)
-        }
-
-        composable(Screen.Community.route) {
-            CommunityScreen(navController = navController)
-        }
-        composable(Screen.ProjectDetails.route) {
-            ProjectDetailsScreen(
-                navController = navController,
-                project = ProjectUi(
-                    "Clean Water Initiative",
-                    "Ongoing",
-                    120000,
-                    0.72f,
-                    "2 days ago"
-                )
-            )
-        }
         composable(Screen.Approvals.route) { ApprovalsScreen(navController) }
         composable(Screen.Expenses.route) { ExpensesScreen(navController) }
         composable(Screen.Reports.route) { ReportsScreen(navController) }
-        composable(Screen.Partners.route) { PartnersDonorsScreen(navController) }
+
+        composable(Screen.Beneficiaries.route) { BeneficiariesScreen(navController) }
+        composable(Screen.Grievances.route) { GrievancesScreen(navController) }
+
+        // ✅ Project Details with argument (per-project)
         composable(
-            route = Screen.PartnerDetails.route,
-            arguments = listOf(navArgument("partnerId"){type = NavType.StringType})
-        ){backStackEntry ->
-            val partnerId = backStackEntry.arguments?.getString("partnerId") ?: ""
-            PartnerDetailsScreen(navController=navController, partnerId=partnerId)
+            route = Screen.ProjectDetails.route,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
+            ProjectDetailsScreen(navController = navController, projectId = projectId)
         }
 
-
+        // ✅ Partner Details with argument
+        composable(
+            route = Screen.PartnerDetails.route,
+            arguments = listOf(navArgument("partnerId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val partnerId = backStackEntry.arguments?.getString("partnerId") ?: ""
+            PartnerDetailsScreen(navController = navController, partnerId = partnerId)
+        }
     }
 }
