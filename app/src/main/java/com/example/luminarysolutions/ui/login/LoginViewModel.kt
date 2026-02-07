@@ -92,6 +92,12 @@ class LoginViewModel : ViewModel() {
                 )
             }
     }
+    fun resetLoginState() {
+        uiState = LoginUiState.Idle
+        role = null
+        email = ""
+        password = ""
+    }
 
 }
 

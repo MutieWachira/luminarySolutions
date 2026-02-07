@@ -28,6 +28,9 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     viewModel: LoginViewModel = viewModel()
 ) {
+    LaunchedEffect(Unit) {
+        viewModel.resetLoginState()
+    }
     val state = viewModel.uiState
 
     LoginScreenContent(

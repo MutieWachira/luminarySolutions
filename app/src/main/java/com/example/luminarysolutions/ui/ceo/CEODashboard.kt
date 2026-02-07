@@ -34,13 +34,16 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.luminarysolutions.ui.auth.UserRole
+import com.example.luminarysolutions.ui.login.LoginViewModel
 import com.example.luminarysolutions.ui.navigation.Screen
+import com.google.firebase.auth.FirebaseAuth
 
 // 1️⃣ The main dashboard screen
 @Composable
 fun CEODashboardScreen(
     navController: NavController,
-    role: UserRole
+    role: UserRole,
+    viewModel: LoginViewModel
 ){
     Column(
         modifier = Modifier
@@ -106,12 +109,22 @@ fun CEODashboardScreen(
 
         // Logout
         Button(
-            onClick = { /* Logout */ },
+            onClick = {
+                FirebaseAuth.getInstance().signOut()
+                viewModel.resetLoginState()
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(Screen.CEODashboard.route) { inclusive = true }
+                    launchSingleTop = true
+                }
+            },
             colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Logout", color = Color.White)
         }
+
+
+
     }
 }
 
@@ -140,7 +153,7 @@ fun KPICard(title: String, value: String, icon: ImageVector) {
 @Preview(showBackground = true)
 @Composable
 fun CEODashboardScreenPreview() {
-    CEODashboardScreen(navController = rememberNavController(), role = UserRole.CEO)
+    CEODashboardScreen(navController = rememberNavController(), role = UserRole.CEO, viewModel = LoginViewModel())
 }
 
 
