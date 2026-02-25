@@ -21,6 +21,11 @@ import com.example.luminarysolutions.ui.ceo.PartnersDonorsScreen
 import com.example.luminarysolutions.ui.ceo.ProjectDetailsScreen
 import com.example.luminarysolutions.ui.ceo.ProjectsScreen
 import com.example.luminarysolutions.ui.ceo.ReportsScreen
+import com.example.luminarysolutions.ui.donor.CampaignDetailsScreen
+import com.example.luminarysolutions.ui.donor.CampaignsScreen
+import com.example.luminarysolutions.ui.donor.DonationHistoryScreen
+import com.example.luminarysolutions.ui.donor.DonorDashboardScreen
+import com.example.luminarysolutions.ui.donor.ImpactReportsScreen
 import com.example.luminarysolutions.ui.login.LoginScreen
 import com.example.luminarysolutions.ui.login.LoginViewModel
 import com.example.luminarysolutions.ui.itadmin.ITAdminDashboardScreen
@@ -146,5 +151,19 @@ fun AppNavHost(
           VolunteerTaskDetailsScreen(navController, taskId)
         }
         composable(Screen.VolunteerEvents.route) { VolunteerEventsScreen(navController) }
+
+        // Donor module routes
+        composable(Screen.DonorDashboard.route) { DonorDashboardScreen(navController) }
+        composable(Screen.DonorCampaigns.route) { CampaignsScreen(navController) }
+        composable(Screen.DonorDonations.route) { DonationHistoryScreen(navController) }
+        composable(Screen.DonorReports.route) { ImpactReportsScreen(navController) }
+
+        composable(
+            route = Screen.CampaignDetails.route,
+            arguments = listOf(navArgument("campaignId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val campaignId = backStackEntry.arguments?.getString("campaignId") ?: ""
+            CampaignDetailsScreen(navController, campaignId)
+        }
     }
 }

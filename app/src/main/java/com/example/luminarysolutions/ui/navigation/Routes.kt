@@ -2,10 +2,9 @@ package com.example.luminarysolutions.ui.navigation
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
-    object CEODashboard : Screen("ceo_dashboard")
-    object DonorDashboard : Screen("donor_dashboard")
 
     //ceo module
+    object CEODashboard : Screen("ceo_dashboard")
     object Projects : Screen("projects")
     object Finance : Screen("finance")
     object Partners : Screen("partners")
@@ -41,4 +40,16 @@ sealed class Screen(val route: String) {
         fun createRoute(taskId: String) = "volunteer_task_details/$taskId"
     }
     object VolunteerEvents : Screen("volunteer_events")
+
+    //donor
+    object DonorDashboard : Screen("donor_dashboard")
+
+    // Donor module
+    object DonorCampaigns : Screen("donor_campaigns")
+    object DonorDonations : Screen("donor_donations")
+    object DonorReports : Screen("donor_reports")
+
+    object CampaignDetails : Screen("campaign_details/{campaignId}") {
+        fun createRoute(campaignId: String) = "campaign_details/$campaignId"
+    }
 }
