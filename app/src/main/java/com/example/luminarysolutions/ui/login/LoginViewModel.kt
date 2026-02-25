@@ -11,8 +11,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 class LoginViewModel : ViewModel() {
 
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    // Using lazy initialization to avoid crashing in Compose Previews where Firebase is not initialized
+    private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
+    private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
 
     var email by mutableStateOf("")
@@ -59,8 +60,13 @@ class LoginViewModel : ViewModel() {
                     .document(uid)
                     .get()
                     .addOnSuccessListener { doc ->
+                        println("DOC EXISTS: ${doc.exists()}")
+                        println("DOC DATAL ${doc.data}")
                         val roleString = doc.getString("role")
+                        android.util.Log.d("LoginViewModel", "Role string: $roleString")
                         role = safeValueOf(roleString)
+                        android.util.Log.d("LoginViewModel", "Role: $role")
+                        println("ROLE: $role")
                         uiState = LoginUiState.Success
                     }
                     .addOnFailureListener {
@@ -100,6 +106,3 @@ class LoginViewModel : ViewModel() {
     }
 
 }
-
-
-

@@ -23,6 +23,13 @@ import com.example.luminarysolutions.ui.ceo.ProjectsScreen
 import com.example.luminarysolutions.ui.ceo.ReportsScreen
 import com.example.luminarysolutions.ui.login.LoginScreen
 import com.example.luminarysolutions.ui.login.LoginViewModel
+import com.example.luminarysolutions.ui.itadmin.ITAdminDashboardScreen
+import com.example.luminarysolutions.ui.itadmin.RoleDetailsScreen
+import com.example.luminarysolutions.ui.itadmin.UsersScreen
+import com.example.luminarysolutions.ui.itadmin.RolesScreen
+import com.example.luminarysolutions.ui.itadmin.AuditLogsScreen
+import com.example.luminarysolutions.ui.itadmin.SystemSettingsScreen
+
 
 @Composable
 fun AppNavHost(
@@ -34,10 +41,10 @@ fun AppNavHost(
     NavHost(
         modifier = modifier,
         navController = navController,
-        startDestination = Screen.Login.route
+        startDestination = Screen.Login.route,
     ) {
 
-        // 🔹 Login
+        // Login
         composable(Screen.Login.route) {
             LoginScreen(
                 onLoginSuccess = {
@@ -48,7 +55,7 @@ fun AppNavHost(
                                 launchSingleTop = true
                             }
 
-                        UserRole.IT_ADMIN -> navController.navigate(Screen.StaffDashboard.route)
+                        UserRole.ADMIN -> navController.navigate(Screen.ITAdminDashboard.route)
                         UserRole.VOLUNTEER -> navController.navigate(Screen.VolunteerDashboard.route)
                         UserRole.DONOR -> navController.navigate(Screen.DonorDashboard.route)
                         else -> navController.navigate(Screen.Login.route)
@@ -67,10 +74,10 @@ fun AppNavHost(
             )
         }
 
-        // ✅ CEO Module Routes
+        //  CEO Module Routes
         composable(Screen.Projects.route) { ProjectsScreen(navController) }
         composable(Screen.Finance.route) { FinanceScreen(navController) }
-        composable(Screen.Partners.route) { PartnersDonorsScreen(navController) } // ✅ only one partners screen
+        composable(Screen.Partners.route) { PartnersDonorsScreen(navController) } // only one partners screen
         composable(Screen.Community.route) { CommunityScreen(navController) }
 
         composable(Screen.Approvals.route) { ApprovalsScreen(navController) }
@@ -80,7 +87,7 @@ fun AppNavHost(
         composable(Screen.Beneficiaries.route) { BeneficiariesScreen(navController) }
         composable(Screen.Grievances.route) { GrievancesScreen(navController) }
 
-        // ✅ Project Details with argument (per-project)
+        // Project Details with argument (per-project)
         composable(
             route = Screen.ProjectDetails.route,
             arguments = listOf(navArgument("projectId") { type = NavType.StringType })
@@ -89,7 +96,7 @@ fun AppNavHost(
             ProjectDetailsScreen(navController = navController, projectId = projectId)
         }
 
-        // ✅ Partner Details with argument
+        //  Partner Details with argument
         composable(
             route = Screen.PartnerDetails.route,
             arguments = listOf(navArgument("partnerId") { type = NavType.StringType })
@@ -97,5 +104,31 @@ fun AppNavHost(
             val partnerId = backStackEntry.arguments?.getString("partnerId") ?: ""
             PartnerDetailsScreen(navController = navController, partnerId = partnerId)
         }
+
+        //IT_Admin Module Routes
+        composable(Screen.ITAdminDashboard.route){
+            ITAdminDashboardScreen(
+                navController = navController,
+                role = UserRole.ADMIN,
+                viewModel = viewModel
+            )
+        }
+        composable(Screen.Users.route) {
+            UsersScreen (
+                navController = navController,
+                role = UserRole.ADMIN
+            )
+        }
+        composable(Screen.Roles.route){ RolesScreen(navController) }
+        composable(
+            route=Screen.RoleDetails.route,
+            arguments = listOf(navArgument("roleID"){
+                type = NavType.StringType })
+            ){
+            backStackEntry -> val roleId = backStackEntry.arguments?.getString("roleId")?: ""
+            RoleDetailsScreen(navController, roleId)
+        }
+        composable(Screen.AuditLogs.route){ AuditLogsScreen(navController) }
+        composable(Screen.SystemSettings.route){ SystemSettingsScreen(navController) }
     }
 }

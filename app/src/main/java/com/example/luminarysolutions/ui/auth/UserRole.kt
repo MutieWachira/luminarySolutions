@@ -2,19 +2,25 @@ package com.example.luminarysolutions.ui.auth
 
 enum class UserRole {
     CEO,
-    IT_ADMIN,
+    ADMIN,
     VOLUNTEER,
     DONOR,
     UNKNOWN
 }
 
 // A safe way to convert a String to a UserRole
-fun safeValueOf(role: String?): UserRole {
-    return try {
-        // Trim whitespace and convert to uppercase to make matching more robust
-        UserRole.valueOf(role?.trim()?.uppercase() ?: "")
-    } catch (e: IllegalArgumentException) {
-        // Default to UNKNOWN if the role from Firestore is invalid
-        UserRole.UNKNOWN
+fun safeValueOf(roleString: String?): UserRole {
+    val normalized = roleString
+        ?.trim()
+        ?.uppercase()
+        ?.replace(" ", "_")   // "IT ADMIN" -> "IT_ADMIN"
+        ?: return UserRole.UNKNOWN
+
+    return when (normalized) {
+        "CEO" -> UserRole.CEO
+        "ADMIN" -> UserRole.ADMIN
+        "VOLUNTEER" -> UserRole.VOLUNTEER
+        "DONOR" -> UserRole.DONOR
+        else -> UserRole.UNKNOWN
     }
 }

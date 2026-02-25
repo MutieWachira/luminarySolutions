@@ -43,7 +43,7 @@ import com.google.firebase.auth.FirebaseAuth
 fun CEODashboardScreen(
     navController: NavController,
     role: UserRole,
-    viewModel: LoginViewModel
+    viewModel: LoginViewModel? = null
 ){
     Column(
         modifier = Modifier
@@ -110,8 +110,9 @@ fun CEODashboardScreen(
         // Logout
         Button(
             onClick = {
+                // Perform sign out. Note: In production, consider moving this logic to the ViewModel
                 FirebaseAuth.getInstance().signOut()
-                viewModel.resetLoginState()
+                viewModel?.resetLoginState() // Use safe call to fix compilation/render error when viewModel is null (e.g., in Preview)
                 navController.navigate(Screen.Login.route) {
                     popUpTo(Screen.CEODashboard.route) { inclusive = true }
                     launchSingleTop = true
@@ -153,7 +154,7 @@ fun KPICard(title: String, value: String, icon: ImageVector) {
 @Preview(showBackground = true)
 @Composable
 fun CEODashboardScreenPreview() {
-    CEODashboardScreen(navController = rememberNavController(), role = UserRole.CEO, viewModel = LoginViewModel())
+    CEODashboardScreen(navController = rememberNavController(), role = UserRole.CEO)
 }
 
 
