@@ -29,6 +29,10 @@ import com.example.luminarysolutions.ui.itadmin.UsersScreen
 import com.example.luminarysolutions.ui.itadmin.RolesScreen
 import com.example.luminarysolutions.ui.itadmin.AuditLogsScreen
 import com.example.luminarysolutions.ui.itadmin.SystemSettingsScreen
+import com.example.luminarysolutions.ui.volunteer.VolunteerDashboardScreen
+import com.example.luminarysolutions.ui.volunteer.VolunteerEventsScreen
+import com.example.luminarysolutions.ui.volunteer.VolunteerTaskDetailsScreen
+import com.example.luminarysolutions.ui.volunteer.VolunteerTasksScreen
 
 
 @Composable
@@ -130,5 +134,17 @@ fun AppNavHost(
         }
         composable(Screen.AuditLogs.route){ AuditLogsScreen(navController) }
         composable(Screen.SystemSettings.route){ SystemSettingsScreen(navController) }
+
+        //volunteer module routes
+        composable(Screen.VolunteerDashboard.route) { VolunteerDashboardScreen(navController) }
+        composable(Screen.VolunteerTasks.route) { VolunteerTasksScreen(navController) }
+        composable(
+         route = Screen.VolunteerTaskDetails.route,
+        arguments = listOf(navArgument("taskId") { type = NavType.StringType })
+         ) { backStackEntry ->
+        val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
+          VolunteerTaskDetailsScreen(navController, taskId)
+        }
+        composable(Screen.VolunteerEvents.route) { VolunteerEventsScreen(navController) }
     }
 }
