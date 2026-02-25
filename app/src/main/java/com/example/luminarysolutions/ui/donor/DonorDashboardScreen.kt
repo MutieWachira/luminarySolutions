@@ -90,7 +90,7 @@ fun DonorDashboardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
-                Text("Logout")
+                Text("Log out")
             }
         }
     }
