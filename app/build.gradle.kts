@@ -37,6 +37,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
+        freeCompilerArgs += "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
     }
     buildFeatures {
         compose = true
@@ -67,6 +68,8 @@ dependencies {
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.camera.core)
     implementation(libs.identity.jvm)
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.material3)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

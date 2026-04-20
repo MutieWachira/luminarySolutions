@@ -1,6 +1,6 @@
-package com.example.luminarysolutions.ui.ceo.models
+package com.example.luminarysolutions.data.models
 
-data class ProjectUi(
+data class Project(
     val id: String,
     val name: String,
     val status: String,
