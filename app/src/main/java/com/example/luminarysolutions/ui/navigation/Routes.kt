@@ -11,7 +11,9 @@ sealed class Screen(val route: String) {
     object Donors : Screen("donors")
     object Community : Screen("community")
     object Approvals : Screen("approvals")
-    object Expenses : Screen("expenses")
+    object Expenses : Screen("expenses?projectId={projectId}") {
+        fun createRoute(projectId: String? = null) = if (projectId != null) "expenses?projectId=$projectId" else "expenses"
+    }
     object Reports : Screen("reports")
     object PartnerDetails : Screen("partner_details/{partnerId}"){
         fun createRoute(partnerId: String) = "partner_details/$partnerId"

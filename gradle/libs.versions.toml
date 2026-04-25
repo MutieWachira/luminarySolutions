@@ -1,5 +1,5 @@
 [versions]
-agp = "9.0.1"
+agp = "9.2.0"
 kotlin = "2.2.10"
 coreKtx = "1.17.0"
 junit = "4.13.2"
@@ -28,6 +28,8 @@ firebaseAuthKtxVersion = "24.0.1"
 cameraCore = "1.5.3"
 identityJvm = "202411.1"
 coil = "2.6.0"
+uiVersion = "1.10.6"
+androidxFoundation = "1.11.0"
 
 [libraries]
 androidx-compose-material-icons = {group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIcons"}
@@ -63,6 +65,8 @@ firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx",
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
 identity-jvm = { group = "com.android.identity", name = "identity-jvm", version.ref = "identityJvm" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+ui = { group = "androidx.compose.ui", name = "ui", version.ref = "uiVersion" }
+foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "androidxFoundation" }
 
 
 [plugins]

@@ -1,5 +1,6 @@
 package com.example.luminarysolutions.ui.ceo
 
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 enum class ProjectFilter { ALL, ONGOING, COMPLETED, AT_RISK }
@@ -71,24 +73,47 @@ class ProjectsViewModel : ViewModel() {
         _filter.value = filter
     }
 
-    fun addProject(name: String, budget: Int, progress: Float) {
+    fun addProject(
+        name: String,
+        budget: Int,
+        description: String,
+        location: String,
+        startDate: Long,
+        imageUrl: String? = null,
+        imageUri: Uri? = null
+    ) {
         Log.d("ProjectsViewModel", "Attempting to add project: $name")
         _isSaving.value = true
-        val newProject = Project(
-            id = UUID.randomUUID().toString(),
-            name = name,
-            status = "Ongoing",
-            budget = budget,
-            spent = 0,
-            progress = progress,
-            lastUpdated = "Just now"
-        )
-        repository.addProject(newProject) { success ->
-            _isSaving.value = false
-            if (success) {
-                Log.d("ProjectsViewModel", "Project added successfully")
+        
+        viewModelScope.launch {
+            val finalImageUrl = if (imageUri != null) {
+                repository.uploadImage(imageUri)
             } else {
-                Log.e("ProjectsViewModel", "Failed to add project")
+                imageUrl
+            }
+
+            val newProject = Project(
+                id = UUID.randomUUID().toString(),
+                name = name,
+                status = "Ongoing",
+                budget = budget,
+                spent = 0,
+                progress = 0f,
+                lastUpdated = "Just now",
+                imageUrl = finalImageUrl,
+                description = description,
+                location = location,
+                startDate = startDate,
+                tasks = emptyList()
+            )
+            
+            repository.addProject(newProject) { success ->
+                _isSaving.value = false
+                if (success) {
+                    Log.d("ProjectsViewModel", "Project added successfully")
+                } else {
+                    Log.e("ProjectsViewModel", "Failed to add project")
+                }
             }
         }
     }

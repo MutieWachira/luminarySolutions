@@ -19,7 +19,10 @@ class ExpensesViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(ExpensesUiState())
     val uiState: StateFlow<ExpensesUiState> = _uiState.asStateFlow()
 
-    init {
+    private var currentProjectId: String? = null
+
+    fun setProjectId(projectId: String?) {
+        currentProjectId = projectId
         loadExpenses()
     }
 
@@ -27,8 +30,13 @@ class ExpensesViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             FirestoreService.getExpenses().collect { expenses ->
+                val filteredExpenses = if (currentProjectId != null) {
+                    expenses.filter { it.projectId == currentProjectId }
+                } else {
+                    expenses
+                }
                 _uiState.value = _uiState.value.copy(
-                    expenses = expenses,
+                    expenses = filteredExpenses,
                     isLoading = false
                 )
             }

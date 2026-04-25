@@ -40,6 +40,11 @@ object FirestoreService {
         .document("partners")
         .collection("items")
 
+    // Path: lumisphere (collection) -> volunteers (document) -> items (sub-collection)
+    private fun getVolunteersCollection() = db.collection("lumisphere")
+        .document("volunteers")
+        .collection("items")
+
 
     /**
      * Dashboard stats using Flow for real-time updates.
@@ -123,6 +128,16 @@ object FirestoreService {
             else -> "Just now"
         }
 
+        val rawTasks = doc.get("tasks") as? List<Map<String, Any>>
+        val tasks = rawTasks?.map { taskMap ->
+            com.example.luminarysolutions.data.models.Task(
+                id = taskMap["id"] as? String ?: "",
+                title = taskMap["title"] as? String ?: "",
+                assignedTo = taskMap["assignedTo"] as? String ?: "",
+                isDone = taskMap["isDone"] as? Boolean ?: false
+            )
+        } ?: emptyList()
+
         return Project(
             id = doc.id,
             name = doc.getString("name") ?: "Unnamed Project",
@@ -130,7 +145,14 @@ object FirestoreService {
             budget = doc.getLong("budget")?.toInt() ?: 0,
             spent = doc.getLong("spent")?.toInt() ?: 0,
             progress = doc.getDouble("progress")?.toFloat() ?: 0f,
-            lastUpdated = dateDisplay
+            lastUpdated = dateDisplay,
+            imageUrl = doc.getString("imageUrl"),
+            description = doc.getString("description") ?: "",
+            location = doc.getString("location") ?: "",
+            startDate = doc.getLong("startDate") ?: System.currentTimeMillis(),
+            tasks = tasks,
+            volunteers = doc.get("volunteers") as? List<String> ?: emptyList(),
+            groupLeaderId = doc.getString("groupLeaderId")
         )
     }
 
@@ -144,7 +166,21 @@ object FirestoreService {
             "budget" to project.budget,
             "spent" to project.spent,
             "progress" to project.progress,
-            "lastUpdated" to FieldValue.serverTimestamp()
+            "lastUpdated" to FieldValue.serverTimestamp(),
+            "imageUrl" to project.imageUrl,
+            "description" to project.description,
+            "location" to project.location,
+            "startDate" to project.startDate,
+            "tasks" to project.tasks.map { task ->
+                mapOf(
+                    "id" to task.id,
+                    "title" to task.title,
+                    "assignedTo" to task.assignedTo,
+                    "isDone" to task.isDone
+                )
+            },
+            "volunteers" to project.volunteers,
+            "groupLeaderId" to project.groupLeaderId
         )
         
         getProjectsCollection().add(projectData)
@@ -161,6 +197,85 @@ object FirestoreService {
                 Log.e("FirestoreService", "Error adding project: ${e.message}")
                 onComplete(false) 
             }
+    }
+
+    fun updateTaskStatus(projectId: String, taskId: String, isDone: Boolean, onComplete: (Boolean) -> Unit) {
+        val projectRef = getProjectsCollection().document(projectId)
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(projectRef)
+            val tasks = snapshot.get("tasks") as? List<Map<String, Any>> ?: emptyList()
+            val updatedTasks = tasks.map { task ->
+                if (task["id"] == taskId) {
+                    val updatedTask = task.toMutableMap()
+                    updatedTask["isDone"] = isDone
+                    updatedTask
+                } else {
+                    task
+                }
+            }
+            
+            val doneCount = updatedTasks.count { it["isDone"] == true }
+            val totalCount = updatedTasks.size
+            val progress = if (totalCount > 0) doneCount.toFloat() / totalCount.toFloat() else 0f
+            
+            transaction.update(projectRef, "tasks", updatedTasks)
+            transaction.update(projectRef, "progress", progress)
+            transaction.update(projectRef, "lastUpdated", FieldValue.serverTimestamp())
+        }.addOnSuccessListener { onComplete(true) }
+         .addOnFailureListener { onComplete(false) }
+    }
+
+    fun addTaskToProject(projectId: String, task: com.example.luminarysolutions.data.models.Task, onComplete: (Boolean) -> Unit) {
+        val projectRef = getProjectsCollection().document(projectId)
+        val taskData = mapOf(
+            "id" to task.id,
+            "title" to task.title,
+            "assignedTo" to task.assignedTo,
+            "isDone" to task.isDone
+        )
+        
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(projectRef)
+            val tasks = snapshot.get("tasks") as? List<Map<String, Any>> ?: emptyList()
+            val updatedTasks = tasks + taskData
+            
+            val doneCount = updatedTasks.count { it["isDone"] == true }
+            val totalCount = updatedTasks.size
+            val progress = if (totalCount > 0) doneCount.toFloat() / totalCount.toFloat() else 0f
+            
+            transaction.update(projectRef, "tasks", updatedTasks)
+            transaction.update(projectRef, "progress", progress)
+            transaction.update(projectRef, "lastUpdated", FieldValue.serverTimestamp())
+        }.addOnSuccessListener { onComplete(true) }
+         .addOnFailureListener { onComplete(false) }
+    }
+
+    fun getVolunteers(): Flow<List<com.example.luminarysolutions.data.models.Volunteer>> = callbackFlow {
+        val registration = getVolunteersCollection()
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val volunteers = snapshot?.documents?.mapNotNull { doc ->
+                    com.example.luminarysolutions.data.models.Volunteer(
+                        id = doc.id,
+                        name = doc.getString("name") ?: "Unnamed",
+                        email = doc.getString("email") ?: "",
+                        phoneNumber = doc.getString("phoneNumber") ?: "",
+                        status = doc.getString("status") ?: "Available"
+                    )
+                } ?: emptyList()
+                trySend(volunteers)
+            }
+        awaitClose { registration.remove() }
+    }
+
+    fun assignGroupLeader(projectId: String, leaderId: String, onComplete: (Boolean) -> Unit) {
+        getProjectsCollection().document(projectId)
+            .update("groupLeaderId", leaderId)
+            .addOnSuccessListener { onComplete(true) }
+            .addOnFailureListener { onComplete(false) }
     }
 
     /**
@@ -321,7 +436,8 @@ object FirestoreService {
                         account = doc.getString("account") ?: "",
                         amount = doc.getLong("amount")?.toInt() ?: 0,
                         date = dateStr,
-                        timestamp = (doc.get("timestamp") as? Timestamp)?.toDate()?.time ?: System.currentTimeMillis()
+                        timestamp = (doc.get("timestamp") as? Timestamp)?.toDate()?.time ?: System.currentTimeMillis(),
+                        projectId = doc.getString("projectId")
                     )
                 } ?: emptyList()
                 trySend(expenses)
@@ -334,7 +450,8 @@ object FirestoreService {
             "category" to expense.category,
             "account" to expense.account,
             "amount" to expense.amount,
-            "timestamp" to FieldValue.serverTimestamp()
+            "timestamp" to FieldValue.serverTimestamp(),
+            "projectId" to expense.projectId
         )
         getExpensesCollection().add(data)
             .addOnSuccessListener {

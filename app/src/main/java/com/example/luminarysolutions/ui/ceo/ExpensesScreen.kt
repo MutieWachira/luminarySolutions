@@ -28,8 +28,12 @@ import com.example.luminarysolutions.data.models.Expense
 @Composable
 fun ExpensesScreen(
     navController: NavController,
+    projectId: String? = null,
     viewModel: ExpensesViewModel = viewModel()
 ) {
+    LaunchedEffect(projectId) {
+        viewModel.setProjectId(projectId)
+    }
     val uiState by viewModel.uiState.collectAsState()
     var showAddExpense by remember { mutableStateOf(false) }
 

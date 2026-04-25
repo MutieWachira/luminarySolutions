@@ -6,5 +6,6 @@ data class Expense(
     val account: String = "",
     val amount: Int = 0,
     val date: String= "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val projectId: String? = null
 )

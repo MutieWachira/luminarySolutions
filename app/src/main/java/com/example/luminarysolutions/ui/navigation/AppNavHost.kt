@@ -68,7 +68,17 @@ fun AppNavHost(
         composable(Screen.Community.route) { CommunityScreen(navController) }
 
         composable(Screen.Approvals.route) { ApprovalsScreen(navController) }
-        composable(Screen.Expenses.route) { ExpensesScreen(navController) }
+        composable(
+            route = Screen.Expenses.route,
+            arguments = listOf(navArgument("projectId") { 
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId")
+            ExpensesScreen(navController = navController, projectId = projectId)
+        }
         composable(Screen.Reports.route) { ReportsScreen(navController) }
 
         composable(Screen.Beneficiaries.route) { BeneficiariesScreen(navController) }
