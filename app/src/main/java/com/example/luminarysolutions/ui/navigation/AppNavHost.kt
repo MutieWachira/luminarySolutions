@@ -9,35 +9,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.luminarysolutions.ui.auth.UserRole
-import com.example.luminarysolutions.ui.ceo.ApprovalsScreen
-import com.example.luminarysolutions.ui.ceo.BeneficiariesScreen
-import com.example.luminarysolutions.ui.ceo.CEODashboardScreen
-import com.example.luminarysolutions.ui.ceo.CommunityScreen
-import com.example.luminarysolutions.ui.ceo.ExpensesScreen
-import com.example.luminarysolutions.ui.ceo.FinanceScreen
-import com.example.luminarysolutions.ui.ceo.GrievancesScreen
-import com.example.luminarysolutions.ui.ceo.PartnerDetailsScreen
-import com.example.luminarysolutions.ui.ceo.PartnersDonorsScreen
-import com.example.luminarysolutions.ui.ceo.ProjectDetailsScreen
-import com.example.luminarysolutions.ui.ceo.ProjectsScreen
-import com.example.luminarysolutions.ui.ceo.ReportsScreen
-import com.example.luminarysolutions.ui.donor.CampaignDetailsScreen
-import com.example.luminarysolutions.ui.donor.CampaignsScreen
-import com.example.luminarysolutions.ui.donor.DonationHistoryScreen
-import com.example.luminarysolutions.ui.donor.DonorDashboardScreen
-import com.example.luminarysolutions.ui.donor.ImpactReportsScreen
+import com.example.luminarysolutions.ui.ceo.*
+import com.example.luminarysolutions.ui.donor.*
 import com.example.luminarysolutions.ui.login.LoginScreen
 import com.example.luminarysolutions.ui.login.LoginViewModel
-import com.example.luminarysolutions.ui.itadmin.ITAdminDashboardScreen
-import com.example.luminarysolutions.ui.itadmin.RoleDetailsScreen
-import com.example.luminarysolutions.ui.itadmin.UsersScreen
-import com.example.luminarysolutions.ui.itadmin.RolesScreen
-import com.example.luminarysolutions.ui.itadmin.AuditLogsScreen
-import com.example.luminarysolutions.ui.itadmin.SystemSettingsScreen
-import com.example.luminarysolutions.ui.volunteer.VolunteerDashboardScreen
-import com.example.luminarysolutions.ui.volunteer.VolunteerEventsScreen
-import com.example.luminarysolutions.ui.volunteer.VolunteerTaskDetailsScreen
-import com.example.luminarysolutions.ui.volunteer.VolunteerTasksScreen
+import com.example.luminarysolutions.ui.itadmin.*
+import com.example.luminarysolutions.ui.volunteer.*
 
 
 @Composable
@@ -79,24 +56,35 @@ fun AppNavHost(
             CEODashboardScreen(
                 navController = navController,
                 role = UserRole.CEO,
-                viewModel = viewModel
+                loginViewModel = viewModel
             )
         }
 
         //  CEO Module Routes
         composable(Screen.Projects.route) { ProjectsScreen(navController) }
         composable(Screen.Finance.route) { FinanceScreen(navController) }
-        composable(Screen.Partners.route) { PartnersDonorsScreen(navController) } // only one partners screen
+        composable(Screen.Partners.route) { PartnerScreen() }
+        composable(Screen.Donors.route) { DonorsScreen(navController) } // New Donors Screen
         composable(Screen.Community.route) { CommunityScreen(navController) }
 
         composable(Screen.Approvals.route) { ApprovalsScreen(navController) }
-        composable(Screen.Expenses.route) { ExpensesScreen(navController) }
+        composable(
+            route = Screen.Expenses.route,
+            arguments = listOf(navArgument("projectId") { 
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId")
+            ExpensesScreen(navController = navController, projectId = projectId)
+        }
         composable(Screen.Reports.route) { ReportsScreen(navController) }
 
         composable(Screen.Beneficiaries.route) { BeneficiariesScreen(navController) }
         composable(Screen.Grievances.route) { GrievancesScreen(navController) }
 
-        // Project Details with argument (per-project)
+        // Project Details
         composable(
             route = Screen.ProjectDetails.route,
             arguments = listOf(navArgument("projectId") { type = NavType.StringType })
@@ -105,13 +93,23 @@ fun AppNavHost(
             ProjectDetailsScreen(navController = navController, projectId = projectId)
         }
 
-        //  Partner Details with argument
+        //  Partner Details
         composable(
             route = Screen.PartnerDetails.route,
             arguments = listOf(navArgument("partnerId") { type = NavType.StringType })
         ) { backStackEntry ->
             val partnerId = backStackEntry.arguments?.getString("partnerId") ?: ""
             PartnerDetailsScreen(navController = navController, partnerId = partnerId)
+        }
+
+        // Donor Details (CEO view of donor)
+        composable(
+            route = Screen.DonorDetails.route,
+            arguments = listOf(navArgument("donorId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val donorId = backStackEntry.arguments?.getString("donorId") ?: ""
+            // Re-using partner details UI for now as structure is similar
+            PartnerDetailsScreen(navController = navController, partnerId = donorId)
         }
 
         //IT_Admin Module Routes
