@@ -1,6 +1,7 @@
 package com.example.luminarysolutions.data.firebase
 
 import android.util.Log
+import com.example.luminarysolutions.data.models.Approval
 import com.example.luminarysolutions.data.models.Donor
 import com.example.luminarysolutions.data.models.Expense
 import com.example.luminarysolutions.data.models.Partner
@@ -43,6 +44,11 @@ object FirestoreService {
     // Path: lumisphere (collection) -> volunteers (document) -> items (sub-collection)
     private fun getVolunteersCollection() = db.collection("lumisphere")
         .document("volunteers")
+        .collection("items")
+
+    // Path: lumisphere (collection) -> approvals (document) -> items (sub-collection)
+    private fun getApprovalsCollection() = db.collection("lumisphere")
+        .document("approvals")
         .collection("items")
 
 
@@ -462,6 +468,54 @@ object FirestoreService {
                     }
                 onComplete(true)
             }
+            .addOnFailureListener { onComplete(false) }
+    }
+
+    /**
+     * Approvals Section
+     */
+    fun getApprovals(): Flow<List<Approval>> = callbackFlow {
+        val registration = getApprovalsCollection()
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val approvals = snapshot?.documents?.mapNotNull { doc ->
+                    val rawDate = doc.get("timestamp")
+                    val dateStr = when (rawDate) {
+                        is Timestamp -> dateFormatter.format(rawDate.toDate())
+                        else -> "Recently"
+                    }
+                    Approval(
+                        id = doc.id,
+                        type = doc.getString("type") ?: "Approval",
+                        account = doc.getString("account") ?: "",
+                        amount = doc.getLong("amount")?.toInt() ?: 0,
+                        priority = doc.getString("priority") ?: "Medium",
+                        date = dateStr,
+                        status = doc.getString("status") ?: "Pending",
+                        requestedBy = doc.getString("requestedBy") ?: ""
+                    )
+                } ?: emptyList()
+                trySend(approvals)
+            }
+        awaitClose { registration.remove() }
+    }
+
+    fun addApproval(approval: Approval, onComplete: (Boolean) -> Unit) {
+        val data = hashMapOf(
+            "type" to approval.type,
+            "account" to approval.account,
+            "amount" to approval.amount,
+            "priority" to approval.priority,
+            "status" to approval.status,
+            "requestedBy" to approval.requestedBy,
+            "timestamp" to FieldValue.serverTimestamp()
+        )
+        getApprovalsCollection().add(data)
+            .addOnSuccessListener { onComplete(true) }
             .addOnFailureListener { onComplete(false) }
     }
 }

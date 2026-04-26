@@ -5,6 +5,7 @@ sealed class Screen(val route: String) {
 
     //ceo module
     object CEODashboard : Screen("ceo_dashboard")
+    object LuminaryDetails : Screen("luminary_details")
     object Projects : Screen("projects")
     object Finance : Screen("finance")
     object Partners : Screen("partners")

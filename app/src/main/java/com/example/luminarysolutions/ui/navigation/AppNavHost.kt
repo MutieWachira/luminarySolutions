@@ -60,6 +60,10 @@ fun AppNavHost(
             )
         }
 
+        composable(Screen.LuminaryDetails.route) {
+            LuminaryDetailsScreen(navController)
+        }
+
         //  CEO Module Routes
         composable(Screen.Projects.route) { ProjectsScreen(navController) }
         composable(Screen.Finance.route) { FinanceScreen(navController) }

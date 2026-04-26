@@ -1,5 +1,6 @@
 package com.example.luminarysolutions.ui.ceo
 
+import java.util.Locale
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -70,6 +71,7 @@ fun CEODashboardScreen(
         onNavigateToReports = { navController.navigate(Screen.Reports.route) },
         onNavigateToApprovals = { navController.navigate(Screen.Approvals.route) },
         onNavigateToExpenses = { navController.navigate(Screen.Expenses.route) },
+        onNavigateToLuminaryDetails = { navController.navigate(Screen.LuminaryDetails.route) },
         onAddProjectClick = { showAddProjectDialog = true }
     )
 
@@ -95,6 +97,7 @@ fun CEODashboardContent(
     onNavigateToReports: () -> Unit,
     onNavigateToApprovals: () -> Unit,
     onNavigateToExpenses: () -> Unit,
+    onNavigateToLuminaryDetails: () -> Unit,
     onAddProjectClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -230,6 +233,14 @@ fun CEODashboardContent(
         }
 
         val stats = uiState.stats
+        val luminaryRevenue = stats.totalDonors * 15000L
+        val luminaryExpenses = stats.totalExpenses.toLong()
+        val luminaryProfit = luminaryRevenue - luminaryExpenses
+        val luminaryProgress = if (luminaryRevenue > 0) (luminaryProfit.toFloat() / luminaryRevenue).coerceIn(0f, 1f) else 0f
+
+        val lumispherePrograms = stats.totalProjects
+        val lumisphereBeneficiaries = stats.totalPartners * 250L + stats.totalDonors * 50L
+        val lumisphereProgress = (lumispherePrograms / 25f).coerceIn(0f, 1f)
 
         Column(
             modifier = Modifier
@@ -315,7 +326,7 @@ fun CEODashboardContent(
                     )
                     ModernStatCard(
                         title = "Total Funds",
-                        value = "$1.48M",
+                        value = "\$${formatCompact(stats.totalDonors * 15000L)}", // Simplified logic for demo
                         icon = Icons.Default.Payments,
                         iconColor = Color(0xFF10B981),
                         trend = "+8.5%",
@@ -330,7 +341,7 @@ fun CEODashboardContent(
                 ) {
                     ModernStatCard(
                         title = "Total Expenses",
-                        value = "$654K",
+                        value = "\$${formatCompact(stats.totalExpenses.toLong())}",
                         icon = Icons.Default.AccountBalanceWallet,
                         iconColor = Color(0xFFF43F5E),
                         trend = "-4.2%",
@@ -339,7 +350,7 @@ fun CEODashboardContent(
                     )
                     ModernStatCard(
                         title = "Impact Reach",
-                        value = "12,430",
+                        value = formatCompact(stats.totalPartners * 250L + stats.totalDonors * 50L),
                         icon = Icons.Default.Group,
                         iconColor = Color(0xFFF59E0B),
                         trend = "+15%",
@@ -363,14 +374,15 @@ fun CEODashboardContent(
                             brandType = "Business",
                             overviewTitle = "Financial Overview",
                             metrics = listOf(
-                                BrandMetric("Revenue", "$1.25M", "+10.3%"),
-                                BrandMetric("Expenses", "$645K", "+4.2%"),
-                                BrandMetric("Profit", "$605K", "+18.7%")
+                                BrandMetric("Revenue", "\$${formatCompact(luminaryRevenue)}", "+10.3%"),
+                                BrandMetric("Expenses", "\$${formatCompact(luminaryExpenses)}", "+4.2%"),
+                                BrandMetric("Profit", "\$${formatCompact(luminaryProfit)}", "+18.7%")
                             ),
-                            chartProgress = 0.75f,
+                            chartProgress = luminaryProgress,
                             chartColor = Color(0xFF6366F1),
                             centerIcon = Icons.Default.BusinessCenter,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            onViewDetailsClick = onNavigateToLuminaryDetails
                         )
                     } else {
                         BrandOverviewCard(
@@ -378,11 +390,11 @@ fun CEODashboardContent(
                             brandType = "NGO",
                             overviewTitle = "Impact Overview",
                             metrics = listOf(
-                                BrandMetric("Total Donations", "$870K", "+14.5%"),
-                                BrandMetric("Programs Funded", "18", "+2"),
-                                BrandMetric("Beneficiaries", "12,430", "+10%")
+                                BrandMetric("Total Donations", "\$${formatCompact(luminaryRevenue)}", "+14.5%"),
+                                BrandMetric("Programs Funded", lumispherePrograms.toString(), "+2"),
+                                BrandMetric("Beneficiaries", formatCompact(lumisphereBeneficiaries), "+10%")
                             ),
-                            chartProgress = 0.65f,
+                            chartProgress = lumisphereProgress,
                             chartColor = Color(0xFF10B981),
                             centerIcon = Icons.Default.Favorite,
                             modifier = Modifier.fillMaxWidth()
@@ -459,46 +471,32 @@ fun CEODashboardContent(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 8.dp)
                 ) {
-                    val initiatives = listOf(
-                        Initiative(
-                            "Corporate Office Redesign",
-                            0.75f,
-                            "On Track",
-                            Color(0xFF10B981),
-                            "LUMINARY",
-                            Color(0xFF6366F1),
-                            "https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2069"
-                        ),
-                        Initiative(
-                            "Brand Strategy Consulting",
-                            0.40f,
-                            "At Risk",
-                            Color(0xFFF59E0B),
-                            "LUMINARY",
-                            Color(0xFF6366F1),
-                            "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=2070"
-                        ),
-                        Initiative(
-                            "Education For All Campaign",
-                            0.85f,
-                            "On Track",
-                            Color(0xFF10B981),
-                            "LUMISPHERE",
-                            Color(0xFF10B981),
-                            "https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=2104"
-                        ),
-                        Initiative(
-                            "Community Health Initiative",
-                            0.20f,
-                            "Needs Attention",
-                            Color(0xFFF43F5E),
-                            "LUMISPHERE",
-                            Color(0xFF10B981),
-                            "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=2070"
-                        )
-                    )
-                    items(initiatives) { initiative ->
-                        InitiativeCard(initiative)
+                    if (uiState.initiatives.isEmpty()) {
+                        item {
+                            Text(
+                                "No ongoing initiatives found.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(vertical = 16.dp)
+                            )
+                        }
+                    } else {
+                        items(uiState.initiatives) { project ->
+                            InitiativeCard(
+                                initiative = Initiative(
+                                    title = project.name,
+                                    progress = project.progress,
+                                    status = project.status,
+                                    statusColor = when (project.status) {
+                                        "Ongoing" -> Color(0xFF10B981)
+                                        "At Risk" -> Color(0xFFF59E0B)
+                                        else -> Color(0xFFF43F5E)
+                                    },
+                                    brand = if (project.budget > 1000000) "LUMINARY" else "LUMISPHERE",
+                                    brandColor = if (project.budget > 1000000) Color(0xFF6366F1) else Color(0xFF10B981),
+                                    imageUrl = project.imageUrl ?: "https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2069"
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -522,27 +520,33 @@ fun CEODashboardContent(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                ActivityItem(
-                    title = "Budget approval needed for Project Nexa",
-                    desc = "Luminary • Requested by Alex Morgan",
-                    time = "2h ago",
-                    icon = Icons.Default.PendingActions,
-                    iconColor = Color(0xFFF59E0B)
-                )
-                ActivityItem(
-                    title = "New donation of $10,000 received",
-                    desc = "Lumisphere • From Global Future Foundation",
-                    time = "5h ago",
-                    icon = Icons.Default.CheckCircle,
-                    iconColor = Color(0xFF10B981)
-                )
-                ActivityItem(
-                    title = "Expense limit exceeded in Outreach Program",
-                    desc = "Lumisphere • Program ID: LS-2045",
-                    time = "9h ago",
-                    icon = Icons.Default.Warning,
-                    iconColor = Color(0xFFF43F5E)
-                )
+                if (uiState.approvals.isEmpty()) {
+                    ActivityItem(
+                        title = "No pending approvals",
+                        desc = "You're all caught up!",
+                        time = "now",
+                        icon = Icons.Default.CheckCircle,
+                        iconColor = Color(0xFF10B981)
+                    )
+                } else {
+                    uiState.approvals.forEach { approval ->
+                        ActivityItem(
+                            title = approval.type,
+                            desc = "${approval.account} • Requested by ${approval.requestedBy}",
+                            time = approval.date,
+                            icon = when (approval.priority) {
+                                "High" -> Icons.Default.Warning
+                                "Medium" -> Icons.Default.PendingActions
+                                else -> Icons.Default.Info
+                            },
+                            iconColor = when (approval.priority) {
+                                "High" -> Color(0xFFF43F5E)
+                                "Medium" -> Color(0xFFF59E0B)
+                                else -> Color(0xFF10B981)
+                            }
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -565,9 +569,11 @@ fun BrandOverviewCard(
     chartProgress: Float,
     chartColor: Color,
     centerIcon: ImageVector,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onViewDetailsClick: () -> Unit = {}
 ) {
     Surface(
+        onClick = onViewDetailsClick,
         shape = RoundedCornerShape(24.dp),
         color = Color(0xFF111418),
         modifier = modifier
@@ -838,6 +844,14 @@ fun ModernSectionCard(title: String, icon: ImageVector, modifier: Modifier = Mod
     }
 }
 
+fun formatCompact(number: Long): String {
+    return when {
+        number >= 1_000_000 -> String.format(Locale.US, "%.1fM", number / 1_000_000.0)
+        number >= 1_000 -> String.format(Locale.US, "%.1fK", number / 1_000.0)
+        else -> number.toString()
+    }
+}
+
 @Composable
 fun ActivityItem(title: String, desc: String, time: String, icon: ImageVector, iconColor: Color) {
     Row(
@@ -971,6 +985,7 @@ fun CEODashboardPreview() {
         onNavigateToReports = {},
         onNavigateToApprovals = {},
         onNavigateToExpenses = {},
+        onNavigateToLuminaryDetails = {},
         onAddProjectClick = {}
     )
 }
