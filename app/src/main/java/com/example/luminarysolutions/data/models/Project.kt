@@ -8,7 +8,7 @@ data class Task(
 )
 
 data class Project(
-    val id: String,
+    val id: String = "",
     val name: String,
     val status: String,
     val budget: Int,
@@ -21,5 +21,8 @@ data class Project(
     val startDate: Long = System.currentTimeMillis(),
     val tasks: List<Task> = emptyList(),
     val volunteers: List<String> = emptyList(), // List of volunteer IDs
-    val groupLeaderId: String? = null
+    val groupLeaderId: String = "", // Single leader
+    val groupLeaderIds: List<String> = emptyList(), // Multiple leaders support
+    val client: String = "",
+    val category: String = ""
 )

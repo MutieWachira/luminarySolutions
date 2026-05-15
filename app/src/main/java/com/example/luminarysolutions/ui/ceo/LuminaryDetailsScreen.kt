@@ -1,9 +1,12 @@
 package com.example.luminarysolutions.ui.ceo
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -18,14 +21,20 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import com.example.luminarysolutions.data.models.Project
 import com.example.luminarysolutions.ui.ceo.FinancialSummaryCard
 import com.example.luminarysolutions.ui.theme.LuminarySolutionsTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 
 
@@ -36,10 +45,19 @@ fun LuminaryDetailsScreen(
     dashboardViewModel: CEODashboardViewModel = viewModel()
 ) {
     val uiState by dashboardViewModel.uiState.collectAsState()
+    val selectedYear by dashboardViewModel.selectedYear.collectAsState()
 
     LuminaryDetailsContent(
         uiState = uiState,
-        onBackClick = { navController.popBackStack() }
+        selectedYear = selectedYear,
+        onYearSelected = { dashboardViewModel.updateSelectedYear(it) },
+        onAddProject = { dashboardViewModel.addLuminaryProject(it) { } },
+        onDeleteProject = { dashboardViewModel.deleteLuminaryProject(it) { } },
+        onUpdateProject = { dashboardViewModel.updateLuminaryProject(it) { } },
+        onBackClick = { navController.popBackStack() },
+        onProjectClick = { projectId ->
+            navController.navigate(com.example.luminarysolutions.ui.navigation.Screen.ProjectDetails.createRoute(projectId))
+        }
     )
 }
 
@@ -47,10 +65,41 @@ fun LuminaryDetailsScreen(
 @Composable
 fun LuminaryDetailsContent(
     uiState: CEODashboardUiState,
-    onBackClick: () -> Unit
+    selectedYear: Int,
+    onYearSelected: (Int) -> Unit,
+    onAddProject: (Project) -> Unit,
+    onDeleteProject: (String) -> Unit,
+    onUpdateProject: (Project) -> Unit,
+    onBackClick: () -> Unit,
+    onProjectClick: (String) -> Unit
 ) {
     // Local state for tab navigation within the details screen
-    var selectedTabIndex by remember { mutableIntStateOf(5) }
+    var selectedTabIndex by remember { mutableIntStateOf(2) }
+    var showAddProjectDialog by remember { mutableStateOf(false) }
+    var projectToEdit by remember { mutableStateOf<Project?>(null) }
+
+    if (showAddProjectDialog) {
+        AddProjectDialog(
+            teamMembers = uiState.teamMembers,
+            onDismiss = { showAddProjectDialog = false },
+            onConfirm = { project ->
+                onAddProject(project)
+                showAddProjectDialog = false
+            }
+        )
+    }
+
+    if (projectToEdit != null) {
+        EditProjectDialog(
+            project = projectToEdit!!,
+            teamMembers = uiState.teamMembers,
+            onDismiss = { projectToEdit = null },
+            onConfirm = { updatedProject ->
+                onUpdateProject(updatedProject)
+                projectToEdit = null
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -108,9 +157,15 @@ fun LuminaryDetailsContent(
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 when (selectedTabIndex) {
-                    0 -> OverviewTabContent()
+                    0 -> OverviewTabContent(uiState, selectedYear, onYearSelected)
                     1 -> FinancialsTabContent()
-                    2 -> ProjectsTabContent()
+                    2 -> ProjectsTabContent(
+                        uiState = uiState,
+                        onAddProjectClick = { showAddProjectDialog = true },
+                        onDeleteProject = onDeleteProject,
+                        onEditProject = { projectToEdit = it },
+                        onProjectClick = onProjectClick
+                    )
                     3 -> PerformanceTabContent()
                     4 -> DocumentsTabContent()
                     5 -> TeamTabContent()
@@ -130,7 +185,11 @@ fun LuminaryDetailsContent(
  * Content for the Overview Tab
  */
 @Composable
-fun OverviewTabContent() {
+fun OverviewTabContent(
+    uiState: CEODashboardUiState,
+    selectedYear: Int,
+    onYearSelected: (Int) -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Text(
             "Key Metrics",
@@ -138,7 +197,7 @@ fun OverviewTabContent() {
             fontWeight = FontWeight.Black
         )
 
-        // Key Metrics Grid
+        // Key Metrics Grid - Real-time data from ViewModel
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -146,7 +205,7 @@ fun OverviewTabContent() {
             ) {
                 FinancialSummaryCard(
                     label = "Revenue (YTD)",
-                    value = "$1.25M",
+                    value = formatAmount(uiState.lumStats.totalRevenue),
                     trend = "+10.3%",
                     icon = Icons.AutoMirrored.Filled.TrendingUp,
                     color = Color(0xFF6366F1),
@@ -154,7 +213,7 @@ fun OverviewTabContent() {
                 )
                 FinancialSummaryCard(
                     label = "Profit (YTD)",
-                    value = "$805K",
+                    value = formatAmount(uiState.lumStats.totalProfit),
                     trend = "+18.7%",
                     icon = Icons.Default.Payments,
                     color = Color(0xFF10B981),
@@ -167,7 +226,7 @@ fun OverviewTabContent() {
             ) {
                 FinancialSummaryCard(
                     label = "Total Projects",
-                    value = "24",
+                    value = uiState.lumStats.totalProjects.toString(),
                     trend = "+12%",
                     icon = Icons.Default.BusinessCenter,
                     color = Color(0xFFF59E0B),
@@ -175,7 +234,7 @@ fun OverviewTabContent() {
                 )
                 FinancialSummaryCard(
                     label = "Active Clients",
-                    value = "18",
+                    value = uiState.lumStats.totalActiveClient.toString(),
                     trend = "+5.2%",
                     icon = Icons.Default.Person,
                     color = Color(0xFF6366F1),
@@ -184,8 +243,8 @@ fun OverviewTabContent() {
             }
         }
 
-        // Financial Overview
-        FinancialOverviewSection()
+        // Financial Overview - Real-time breakdown
+        FinancialOverviewSection(uiState.lumStats, selectedYear, onYearSelected)
 
         // Business Portfolio
         BusinessPortfolioSection()
@@ -195,8 +254,14 @@ fun OverviewTabContent() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            RecentProjectsSection(Modifier.weight(1f))
-            RecentDocumentsSection(Modifier.weight(1f))
+            RecentProjectsSection(
+                modifier = Modifier.weight(1f),
+                projects = uiState.initiatives.take(3)
+            )
+            RecentDocumentsSection(
+                modifier = Modifier.weight(1f),
+                documents = uiState.documents
+            )
         }
 
         // Insights
@@ -321,11 +386,67 @@ fun FinancialsTabContent() {
 /**
  * Content for the Projects Tab
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProjectsTabContent() {
+fun ProjectsTabContent(
+    uiState: CEODashboardUiState,
+    onAddProjectClick: () -> Unit,
+    onDeleteProject: (String) -> Unit,
+    onEditProject: (Project) -> Unit,
+    onProjectClick: (String) -> Unit
+) {
+    val projects = uiState.luminaryProjects
+    val totalProjects = projects.size
+    val completedProjects = projects.count { it.status == "Completed" }
+    val inProgressProjects = projects.count { it.status == "In Progress" }
+    val onHoldProjects = projects.count { it.status == "On Hold" }
+
+    var projectToDelete by remember { mutableStateOf<Project?>(null) }
+
+    if (projectToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { projectToDelete = null },
+            title = { Text("Delete Project") },
+            text = { Text("Are you sure you want to delete '${projectToDelete?.name}'? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        projectToDelete?.id?.let { onDeleteProject(it) }
+                        projectToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { projectToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         // Project Overview Stats
-        Text("Projects Overview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Projects Overview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+            
+            Button(
+                onClick = onAddProjectClick,
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Add Project", fontSize = 12.sp)
+            }
+        }
+
         // Project Overview Stats in a 2x2 Grid
        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             // Row 1
@@ -335,15 +456,15 @@ fun ProjectsTabContent() {
             ) {
                 ProjectStatusMiniCard(
                     label = "Total Projects",
-                    value = "24",
-                    trend = "+15%",
+                    value = totalProjects.toString(),
+                    trend = "+${(totalProjects * 0.1).toInt()}%",
                     icon = Icons.Default.Inventory2,
                     color = Color(0xFF6366F1),
                     modifier = Modifier.weight(1f) // Makes it take half width
                 )
                 ProjectStatusMiniCard(
                     label = "Completed",
-                    value = "9",
+                    value = completedProjects.toString(),
                     trend = "+2",
                     icon = Icons.Default.CheckCircle,
                     color = Color(0xFF10B981),
@@ -358,7 +479,7 @@ fun ProjectsTabContent() {
             ) {
                 ProjectStatusMiniCard(
                     label = "In Progress",
-                    value = "12",
+                    value = inProgressProjects.toString(),
                     trend = "+3",
                     icon = Icons.Default.Pending,
                     color = Color(0xFF0EA5E9),
@@ -366,7 +487,7 @@ fun ProjectsTabContent() {
                 )
                 ProjectStatusMiniCard(
                     label = "On Hold",
-                    value = "2",
+                    value = onHoldProjects.toString(),
                     trend = "-1",
                     icon = Icons.Default.PauseCircle,
                     color = Color(0xFFF59E0B),
@@ -402,45 +523,81 @@ fun ProjectsTabContent() {
 
         // Project List
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            DetailedProjectCard(
-                name = "Digital Transformation Strategy",
-                status = "In Progress",
-                client = "Corporate Client • Consulting",
-                description = "Making the used modern technologies and improve digital technologies resilience efficiency and customer experience.",
-                dates = "Jan 12, 2023 — Jun 15, 2023",
-                teamSize = 12,
-                progress = 0.75f,
-                budget = "$80,000",
-                spent = "$125,000",
-                indicator = "On Track",
-                indicatorColor = Color(0xFF10B981)
-            )
-            DetailedProjectCard(
-                name = "SME Growth Fund Advisory",
-                status = "Completed",
-                client = "Investment • SME Development",
-                description = "Provided controlled services and capacity building supports to high-potential SMEs across East Africa.",
-                dates = "Oct 5, 2022 — Dec 10, 2023",
-                teamSize = 8,
-                progress = 1.0f,
-                budget = "$120,000",
-                spent = "$75,000",
-                indicator = "Completed",
-                indicatorColor = Color(0xFF10B981)
-            )
-            DetailedProjectCard(
-                name = "Market Expansion Strategy",
-                status = "In Progress",
-                client = "Overseas Client • Strategy",
-                description = "Developing entry and plus expansion strategies for new regions and customer segments.",
-                dates = "Feb 1, 2023 — Aug 15, 2023",
-                teamSize = 5,
-                progress = 0.42f,
-                budget = "$45,000",
-                spent = "$40,000",
-                indicator = "On Track",
-                indicatorColor = Color(0xFF10B981)
-            )
+            if (projects.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    Text("No projects found", color = Color.Gray)
+                }
+            } else {
+                projects.forEach { project ->
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            when (value) {
+                                SwipeToDismissBoxValue.EndToStart -> projectToDelete = project
+                                SwipeToDismissBoxValue.StartToEnd -> {
+                                    onEditProject(project)
+                                }
+                                else -> {}
+                            }
+                            false
+                        }
+                    )
+
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        backgroundContent = {
+                            val color = when (dismissState.dismissDirection) {
+                                SwipeToDismissBoxValue.EndToStart -> Color(0xFFF43F5E) // Red for delete
+                                SwipeToDismissBoxValue.StartToEnd -> Color(0xFF6366F1) // Indigo for edit
+                                else -> Color.Transparent
+                            }
+                            
+                            val alignment = when (dismissState.dismissDirection) {
+                                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                else -> Alignment.Center
+                            }
+                            
+                            val icon = when (dismissState.dismissDirection) {
+                                SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                                SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Edit
+                                else -> Icons.Default.Delete
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(color)
+                                    .padding(horizontal = 20.dp),
+                                contentAlignment = alignment
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = Color.White
+                                )
+                            }
+                        },
+                        content = {
+                            DetailedProjectCard(
+                                name = project.name,
+                                status = project.status,
+                                imageUrl = project.imageUrl,
+                                client = "${project.client} • ${project.category}",
+                                description = project.description,
+                                dates = "Started: ${SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(project.startDate))}",
+                                teamSize = project.volunteers.size,
+                                progress = project.progress,
+                                budget = "$${String.format("%,d", project.budget)}",
+                                spent = "$${String.format("%,d", project.spent)}",
+                                indicator = if (project.spent > project.budget) "Over Budget" else "On Track",
+                                indicatorColor = if (project.spent > project.budget) Color.Red else Color(0xFF10B981),
+                                modifier = Modifier.clickable { onProjectClick(project.id) }
+                            )
+                        }
+                    )
+                }
+            }
         }
         
         // Pagination
@@ -449,7 +606,7 @@ fun ProjectsTabContent() {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Showing 1-5 of 24 projects", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Text("Showing 1-${projects.size} of $totalProjects projects", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 PaginationButton("<", false)
                 PaginationButton("1", true)
@@ -529,6 +686,7 @@ fun FilterDropdown(text: String) {
 fun DetailedProjectCard(
     name: String,
     status: String,
+    imageUrl: String?,
     client: String,
     description: String,
     dates: String,
@@ -537,13 +695,14 @@ fun DetailedProjectCard(
     budget: String,
     spent: String,
     indicator: String,
-    indicatorColor: Color
+    indicatorColor: Color,
+    modifier: Modifier = Modifier
 ) {
     Surface(
         shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
         color = Color.White,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -561,8 +720,22 @@ fun DetailedProjectCard(
                     color = Color(0xFFF1F5F9),
                     modifier = Modifier.size(56.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Business, null, tint = Color.LightGray, modifier = Modifier.size(24.dp))
+                    if (!imageUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = imageUrl,
+                            contentDescription = "Project Image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Business,
+                                null,
+                                tint = Color.LightGray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
 
@@ -1089,7 +1262,15 @@ fun TransactionItem(title: String, category: String, date: String, amount: Strin
 }
 
 @Composable
-fun FinancialOverviewSection() {
+fun FinancialOverviewSection(
+    stats: com.example.luminarysolutions.data.firebase.lumOverviewDashboardStats,
+    selectedYear: Int,
+    onYearSelected: (Int) -> Unit
+) {
+    val profitMargin = if (stats.totalRevenue > 0) {
+        (stats.totalProfit.toFloat() / stats.totalRevenue.toFloat() * 100)
+    } else 0f
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1097,13 +1278,18 @@ fun FinancialOverviewSection() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Financial Overview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-            Text("Year (12 month)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            
+            // Year Selector for selecting previous years
+            YearSelector(
+                selectedYear = selectedYear,
+                onYearSelected = onYearSelected
+            )
         }
 
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = Color(0xFFF8F9FA),
-            modifier = Modifier.fillMaxWidth().height(220.dp)
+            modifier = Modifier.fillMaxWidth().height(250.dp)
         ) {
             Column(Modifier.padding(20.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -1114,17 +1300,68 @@ fun FinancialOverviewSection() {
                 
                 Spacer(Modifier.height(16.dp))
                 
-                // Mock Bar Chart
+                // Real-time Visual Representation using data from database
                 Row(
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    val data = listOf(0.4f, 0.6f, 0.5f, 0.8f, 0.7f, 0.9f)
-                    data.forEach { h ->
-                        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Box(modifier = Modifier.width(8.dp).fillMaxHeight(h).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).background(Color(0xFF6366F1)))
-                            Box(modifier = Modifier.width(8.dp).fillMaxHeight(h * 0.6f).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).background(Color(0xFFE2E8F0)))
+                    if (stats.monthlyStats.isEmpty()) {
+                        // Debug view: Show if data is actually arriving
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                "No data found for $selectedYear\nCheck DB: luminary/financials/years/$selectedYear/months",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Gray,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    } else {
+                        // Industry Best Practice: Use 'key' for efficient list rendering in Compose
+                        val maxValRaw = stats.monthlyStats.maxOfOrNull { maxOf(it.revenue, it.expenses) } ?: 0
+                        val maxVal = if (maxValRaw > 0) maxValRaw.toFloat() * 1.1f else 1f
+                        
+                        stats.monthlyStats.forEach { monthStat ->
+                            key(monthStat.month) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.Bottom,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        // Revenue Bar with proportional height
+                                        val revHeight = (monthStat.revenue / maxVal).coerceIn(0f, 1f)
+                                        Box(
+                                            modifier = Modifier
+                                                .width(10.dp)
+                                                .fillMaxHeight(revHeight.coerceAtLeast(if (monthStat.revenue > 0) 0.05f else 0f))
+                                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                                .background(Color(0xFF6366F1))
+                                        )
+                                        // Expenses Bar
+                                        val expHeight = (monthStat.expenses / maxVal).coerceIn(0f, 1f)
+                                        Box(
+                                            modifier = Modifier
+                                                .width(10.dp)
+                                                .fillMaxHeight(expHeight.coerceAtLeast(if (monthStat.expenses > 0) 0.05f else 0f))
+                                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                                .background(Color(0xFFE2E8F0))
+                                        )
+                                    }
+                                    // Month Label (e.g., "jan" -> "Jan")
+                                    Text(
+                                        text = monthStat.month.replaceFirstChar { it.uppercase() },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.Gray,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1132,11 +1369,78 @@ fun FinancialOverviewSection() {
         }
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            FinancialStat("Revenue", "$1.25M")
-            FinancialStat("Expenses", "$445K")
-            FinancialStat("Profit", "$805K")
-            FinancialStat("Profit Margin", "64.4%")
+            FinancialStat("Revenue", formatAmount(stats.totalRevenue))
+            FinancialStat("Expenses", formatAmount(stats.totalExpenses))
+            FinancialStat("Profit", formatAmount(stats.totalProfit))
+            FinancialStat("Profit Margin", "${String.format("%.1f", profitMargin)}%")
         }
+    }
+}
+
+/**
+ * Dropdown selector for years to allow viewing historical financial data.
+ */
+@Composable
+fun YearSelector(
+    selectedYear: Int,
+    onYearSelected: (Int) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val years = (2023..2026).toList().reversed()
+
+    Box {
+        Surface(
+            onClick = { expanded = true },
+            color = Color(0xFFF8F9FA),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.3f))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = selectedYear.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(Color.White)
+        ) {
+            years.forEach { year ->
+                DropdownMenuItem(
+                    text = { Text(year.toString()) },
+                    onClick = {
+                        onYearSelected(year)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Helper to format amounts (e.g., 1250000 -> $1.25M)
+ * Connects raw numeric data from Firestore to user-friendly strings.
+ */
+fun formatAmount(amount: Int): String {
+    return when {
+        amount >= 1_000_000 -> "$${String.format("%.2f", amount / 1_000_000f)}M"
+        amount >= 1_000 -> "$${String.format("%.1f", amount / 1_000f)}K"
+        else -> "$$amount"
     }
 }
 
@@ -1214,7 +1518,10 @@ fun PortfolioItem(label: String, value: String, percentage: String, color: Color
 }
 
 @Composable
-fun RecentProjectsSection(modifier: Modifier = Modifier) {
+fun RecentProjectsSection(
+    modifier: Modifier = Modifier,
+    projects: List<com.example.luminarysolutions.data.models.Project>
+) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Recent Projects", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
@@ -1222,9 +1529,13 @@ fun RecentProjectsSection(modifier: Modifier = Modifier) {
         }
         
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            ProjectListItem("Digital Transformation", "Up Next", "75%")
-            ProjectListItem("SME Growth Fund", "Active", "40%")
-            ProjectListItem("Market Expansion", "At Risk", "15%")
+            if (projects.isEmpty()) {
+                Text("No projects found", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            } else {
+                projects.forEach { project ->
+                    ProjectListItem(project.name, project.status, "${(project.progress * 100).toInt()}%")
+                }
+            }
         }
     }
 }
@@ -1250,7 +1561,10 @@ fun ProjectListItem(name: String, status: String, progress: String) {
 }
 
 @Composable
-fun RecentDocumentsSection(modifier: Modifier = Modifier) {
+fun RecentDocumentsSection(
+    modifier: Modifier = Modifier,
+    documents: List<com.example.luminarysolutions.data.models.Document>
+) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Recent Documents", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
@@ -1258,9 +1572,13 @@ fun RecentDocumentsSection(modifier: Modifier = Modifier) {
         }
         
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            DocumentListItem("Q1 Financial Report", "May 12, 2023")
-            DocumentListItem("Strategic Plan", "May 10, 2023")
-            DocumentListItem("Annual Review", "Apr 28, 2023")
+            if (documents.isEmpty()) {
+                Text("No documents found", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            } else {
+                documents.forEach { doc ->
+                    DocumentListItem(doc.name, doc.date)
+                }
+            }
         }
     }
 }
@@ -2162,4 +2480,551 @@ fun CultureMetricItem(label: String, value: String, subValue: String, icon: Imag
     }
 }
 
+@Preview()
+@Composable
+fun AddProjectDialog(
+    teamMembers: List<com.example.luminarysolutions.data.models.User>,
+    onDismiss: () -> Unit,
+    onConfirm: (Project) -> Unit
+) {
+    // State for each field in the Project model
+    var name by remember { mutableStateOf("") }
+    var client by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+    var budget by remember { mutableStateOf("") }
+    var spent by remember { mutableStateOf("0") }
+    var status by remember { mutableStateOf("In Progress") }
+    var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedLeaderIds by remember { mutableStateOf(setOf<String>()) }
 
+    val statuses = listOf("In Progress", "Completed", "On Hold")
+    var statusExpanded by remember { mutableStateOf(false) }
+    var leadersExpanded by remember { mutableStateOf(false) }
+
+    // Launcher for picking an image from gallery
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        selectedImageUri = uri
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { 
+            Column {
+                Text("Create New Project", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text("Fill in project details and assign leadership", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Image Upload Section
+                Text("Project Cover Image", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Surface(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF1F5F9),
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (selectedImageUri != null) {
+                            AsyncImage(
+                                model = selectedImageUri,
+                                contentDescription = "Selected Image",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.AddPhotoAlternate, "Upload", tint = Color.Gray, modifier = Modifier.size(32.dp))
+                                Text("Tap to upload project photo", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            }
+                        }
+                    }
+                }
+
+                // Primary Info Section
+                Text("Primary Information", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Project Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = { Icon(Icons.Default.BusinessCenter, null, modifier = Modifier.size(18.dp)) }
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = client,
+                        onValueChange = { client = it },
+                        label = { Text("Client") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text("Category") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    label = { Text("Location") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = { Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(18.dp)) }
+                )
+
+                Divider(color = Color.LightGray.copy(alpha = 0.5f))
+
+                // Financials & Status Section
+                Text("Financials & Status", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = budget,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) budget = it },
+                        label = { Text("Budget ($)") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = spent,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) spent = it },
+                        label = { Text("Spent ($)") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                Box {
+                    OutlinedTextField(
+                        value = status,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Current Status") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { statusExpanded = true }) {
+                                Icon(Icons.Default.ArrowDropDown, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
+                        statuses.forEach { s ->
+                            DropdownMenuItem(
+                                text = { Text(s) },
+                                onClick = {
+                                    status = s
+                                    statusExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Divider(color = Color.LightGray.copy(alpha = 0.5f))
+
+                // Leadership Selection Section
+                Text("Assign Leadership", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                
+                Box {
+                    OutlinedTextField(
+                        value = if (selectedLeaderIds.isEmpty()) "No leaders assigned" else "${selectedLeaderIds.size} leaders selected",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Group Leaders") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { leadersExpanded = true }) {
+                                Icon(Icons.Default.PersonAdd, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(
+                        expanded = leadersExpanded,
+                        onDismissRequest = { leadersExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.8f).heightIn(max = 300.dp)
+                    ) {
+                        if (teamMembers.isEmpty()) {
+                            DropdownMenuItem(text = { Text("No team members found") }, onClick = {})
+                        }
+                        teamMembers.forEach { member ->
+                            val isSelected = selectedLeaderIds.contains(member.id)
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(checked = isSelected, onCheckedChange = null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Column {
+                                            Text(member.name, style = MaterialTheme.typography.bodyMedium)
+                                            Text(member.role.name, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    selectedLeaderIds = if (isSelected) {
+                                        selectedLeaderIds - member.id
+                                    } else {
+                                        selectedLeaderIds + member.id
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                // Display selected leaders as Chips
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    selectedLeaderIds.forEach { id ->
+                        val name = teamMembers.find { it.id == id }?.name ?: "Unknown"
+                        AssistChip(
+                            onClick = { selectedLeaderIds = selectedLeaderIds - id },
+                            label = { Text(name, fontSize = 10.sp) },
+                            trailingIcon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(14.dp)) },
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        val budgetInt = budget.toIntOrNull() ?: 0
+                        val spentInt = spent.toIntOrNull() ?: 0
+                        val progressCalc = if (budgetInt > 0) (spentInt.toFloat() / budgetInt.toFloat()).coerceIn(0f, 1f) else 0f
+                        
+                        onConfirm(
+                            Project(
+                                name = name,
+                                status = status,
+                                budget = budgetInt,
+                                spent = spentInt,
+                                progress = progressCalc,
+                                lastUpdated = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date()),
+                                imageUrl = selectedImageUri?.toString(), // Use the URI string
+                                description = description,
+                                location = location,
+                                startDate = System.currentTimeMillis(),
+                                volunteers = emptyList(), // Volunteers added after creation
+                                groupLeaderId = selectedLeaderIds.firstOrNull() ?: "",
+                                groupLeaderIds = selectedLeaderIds.toList(),
+                                client = client,
+                                category = category
+                            )
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Create Project", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Text("Cancel", color = Color.Gray)
+            }
+        }
+    )
+}
+
+@Composable
+fun EditProjectDialog(
+    project: Project,
+    teamMembers: List<com.example.luminarysolutions.data.models.User>,
+    onDismiss: () -> Unit,
+    onConfirm: (Project) -> Unit
+) {
+    // Initialize state with existing project data
+    var name by remember { mutableStateOf(project.name) }
+    var client by remember { mutableStateOf(project.client) }
+    var category by remember { mutableStateOf(project.category) }
+    var description by remember { mutableStateOf(project.description) }
+    var location by remember { mutableStateOf(project.location) }
+    var budget by remember { mutableStateOf(project.budget.toString()) }
+    var spent by remember { mutableStateOf(project.spent.toString()) }
+    var status by remember { mutableStateOf(project.status) }
+    var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedLeaderIds by remember { mutableStateOf(project.groupLeaderIds.toSet()) }
+
+    val statuses = listOf("In Progress", "Completed", "On Hold")
+    var statusExpanded by remember { mutableStateOf(false) }
+    var leadersExpanded by remember { mutableStateOf(false) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        selectedImageUri = uri
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { 
+            Column {
+                Text("Edit Project", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text("Update project details", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Image Upload Section
+                Text("Project Cover Image", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Surface(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF1F5F9),
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (selectedImageUri != null) {
+                            AsyncImage(
+                                model = selectedImageUri,
+                                contentDescription = "Selected Image",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else if (!project.imageUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = project.imageUrl,
+                                contentDescription = "Current Image",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.AddPhotoAlternate, "Upload", tint = Color.Gray, modifier = Modifier.size(32.dp))
+                                Text("Tap to change photo", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            }
+                        }
+                    }
+                }
+
+                // Primary Info Section
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Project Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = client,
+                        onValueChange = { client = it },
+                        label = { Text("Client") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text("Category") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = { location = it },
+                    label = { Text("Location") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = budget,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) budget = it },
+                        label = { Text("Budget ($)") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = spent,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) spent = it },
+                        label = { Text("Spent ($)") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                Box {
+                    OutlinedTextField(
+                        value = status,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Current Status") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { statusExpanded = true }) {
+                                Icon(Icons.Default.ArrowDropDown, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
+                        statuses.forEach { s ->
+                            DropdownMenuItem(
+                                text = { Text(s) },
+                                onClick = {
+                                    status = s
+                                    statusExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Leadership Selection
+                Box {
+                    OutlinedTextField(
+                        value = if (selectedLeaderIds.isEmpty()) "No leaders assigned" else "${selectedLeaderIds.size} leaders selected",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Group Leaders") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { leadersExpanded = true }) {
+                                Icon(Icons.Default.PersonAdd, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(
+                        expanded = leadersExpanded,
+                        onDismissRequest = { leadersExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.8f).heightIn(max = 300.dp)
+                    ) {
+                        teamMembers.forEach { member ->
+                            val isSelected = selectedLeaderIds.contains(member.id)
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(checked = isSelected, onCheckedChange = null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(member.name)
+                                    }
+                                },
+                                onClick = {
+                                    selectedLeaderIds = if (isSelected) {
+                                        selectedLeaderIds - member.id
+                                    } else {
+                                        selectedLeaderIds + member.id
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val budgetInt = budget.toIntOrNull() ?: 0
+                    val spentInt = spent.toIntOrNull() ?: 0
+                    val progressCalc = if (budgetInt > 0) (spentInt.toFloat() / budgetInt.toFloat()).coerceIn(0f, 1f) else 0f
+                    
+                    onConfirm(
+                        project.copy(
+                            name = name,
+                            status = status,
+                            budget = budgetInt,
+                            spent = spentInt,
+                            progress = progressCalc,
+                            imageUrl = selectedImageUri?.toString() ?: project.imageUrl,
+                            description = description,
+                            location = location,
+                            client = client,
+                            category = category,
+                            groupLeaderIds = selectedLeaderIds.toList(),
+                            groupLeaderId = selectedLeaderIds.firstOrNull() ?: ""
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Save Changes", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel", color = Color.Gray)
+            }
+        }
+    )
+}
+@Preview(showBackground = true)
+@Composable
+fun LuminaryDetailsScreenPreview() {
+    LuminarySolutionsTheme {
+        LuminaryDetailsContent(
+            uiState = CEODashboardUiState(
+                isLoading = false
+            ),
+            selectedYear = 2025,
+            onYearSelected = {},
+            onAddProject = {},
+            onDeleteProject = {},
+            onUpdateProject = {},
+            onBackClick = {},
+            onProjectClick = {}
+        )
+    }
+}

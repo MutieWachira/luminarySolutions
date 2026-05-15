@@ -6,6 +6,8 @@ import com.example.luminarysolutions.data.models.Donor
 import com.example.luminarysolutions.data.models.Expense
 import com.example.luminarysolutions.data.models.Partner
 import com.example.luminarysolutions.data.models.Project
+import com.example.luminarysolutions.data.models.User
+import com.example.luminarysolutions.ui.auth.UserRole
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
@@ -20,9 +22,15 @@ import java.util.Locale
 object FirestoreService {
     private val db = FirebaseFirestore.getInstance()
     private val dateFormatter = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
+    private val monthOrder = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
     
     // Path: lumisphere (collection) -> projects (document) -> items (sub-collection)
     private fun getProjectsCollection() = db.collection("lumisphere")
+        .document("projects")
+        .collection("items")
+
+    // Path: luminary (collection) -> projects (document) -> items (sub-collection)
+    private fun getLuminaryProjectsCollection() = db.collection("luminary")
         .document("projects")
         .collection("items")
 
@@ -62,9 +70,10 @@ object FirestoreService {
         var donorsCount = 0
         var partnersCount = 0
         var expensesTotal = 0
+        var revenueTotal = 0
 
         val emit = {
-            trySend(DashboardStats(projectsCount, donorsCount, expensesTotal, partnersCount))
+            trySend(DashboardStats(projectsCount, donorsCount, expensesTotal, partnersCount, revenueTotal))
         }
 
         val pListener = orgCol.document("projects").addSnapshotListener { doc, _ ->
@@ -87,11 +96,17 @@ object FirestoreService {
             emit()
         }
 
+        val rListener = orgCol.document("revenue").addSnapshotListener { doc, _ ->
+            revenueTotal = doc?.getLong("totalAmount")?.toInt() ?: 0
+            emit()
+        }
+
         awaitClose {
             pListener.remove()
             dListener.remove()
             partListener.remove()
             eListener.remove()
+            rListener.remove()
         }
     }
 
@@ -114,14 +129,34 @@ object FirestoreService {
         awaitClose { registration.remove() }
     }
 
+    /**
+     * Smart lookup for a project by ID across both lumisphere and luminary collections.
+     */
     fun getProjectById(projectId: String): Flow<Project?> = callbackFlow {
+        // First try the lumisphere collection (General Projects)
         val registration = getProjectsCollection().document(projectId)
             .addSnapshotListener { doc, error ->
-                if (error != null || doc == null || !doc.exists()) {
+                if (error != null) {
                     trySend(null)
                     return@addSnapshotListener
                 }
-                trySend(mapToProjectUi(doc))
+                
+                if (doc != null && doc.exists()) {
+                    trySend(mapToProjectUi(doc))
+                } else {
+                    // If not found in lumisphere, try the luminary collection (Business Projects)
+                    getLuminaryProjectsCollection().document(projectId).get()
+                        .addOnSuccessListener { lumDoc ->
+                            if (lumDoc.exists()) {
+                                trySend(mapToProjectUi(lumDoc))
+                            } else {
+                                trySend(null)
+                            }
+                        }
+                        .addOnFailureListener {
+                            trySend(null)
+                        }
+                }
             }
         awaitClose { registration.remove() }
     }
@@ -158,7 +193,10 @@ object FirestoreService {
             startDate = doc.getLong("startDate") ?: System.currentTimeMillis(),
             tasks = tasks,
             volunteers = doc.get("volunteers") as? List<String> ?: emptyList(),
-            groupLeaderId = doc.getString("groupLeaderId")
+            groupLeaderId = doc.getString("groupLeaderId") ?: "",
+            groupLeaderIds = doc.get("groupLeaderIds") as? List<String> ?: emptyList(),
+            client = doc.getString("client") ?: "",
+            category = doc.getString("category") ?: ""
         )
     }
 
@@ -186,7 +224,10 @@ object FirestoreService {
                 )
             },
             "volunteers" to project.volunteers,
-            "groupLeaderId" to project.groupLeaderId
+            "groupLeaderId" to project.groupLeaderId,
+            "groupLeaderIds" to project.groupLeaderIds,
+            "client" to project.client,
+            "category" to project.category
         )
         
         getProjectsCollection().add(projectData)
@@ -203,6 +244,142 @@ object FirestoreService {
                 Log.e("FirestoreService", "Error adding project: ${e.message}")
                 onComplete(false) 
             }
+    }
+
+    /**
+     * Luminary Specific Projects
+     */
+    fun getLuminaryProjects(): Flow<List<Project>> = callbackFlow {
+        val registration = getLuminaryProjectsCollection()
+            .orderBy("lastUpdated", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val projects = snapshot?.documents?.mapNotNull { doc -> mapToProjectUi(doc) } ?: emptyList()
+                trySend(projects)
+            }
+        awaitClose { registration.remove() }
+    }
+
+    /**
+     * Team / Users Section
+     */
+    fun getTeamMembers(): Flow<List<User>> = callbackFlow {
+        val registration = db.collection("users")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val users = snapshot?.documents?.mapNotNull { doc ->
+                    User(
+                        id = doc.id,
+                        name = doc.getString("name") ?: "Unnamed",
+                        email = doc.getString("email") ?: "",
+                        role = com.example.luminarysolutions.ui.auth.safeValueOf(doc.getString("role")),
+                        enabled = doc.getBoolean("enabled") ?: true
+                    )
+                } ?: emptyList()
+                trySend(users)
+            }
+        awaitClose { registration.remove() }
+    }
+
+    fun addLuminaryProject(project: Project, onComplete: (Boolean) -> Unit) {
+        val projectData = hashMapOf(
+            "name" to project.name,
+            "status" to project.status,
+            "budget" to project.budget,
+            "spent" to project.spent,
+            "progress" to project.progress,
+            "lastUpdated" to FieldValue.serverTimestamp(),
+            "imageUrl" to project.imageUrl,
+            "description" to project.description,
+            "location" to project.location,
+            "startDate" to project.startDate,
+            "tasks" to emptyList<Map<String, Any>>(),
+            "volunteers" to emptyList<String>(),
+            "groupLeaderId" to project.groupLeaderId,
+            "groupLeaderIds" to project.groupLeaderIds,
+            "client" to project.client,
+            "category" to project.category
+        )
+
+        getLuminaryProjectsCollection().add(projectData)
+            .addOnSuccessListener {
+                val statsRef = db.collection("luminary").document("projects")
+                statsRef.update("count", FieldValue.increment(1))
+                    .addOnFailureListener {
+                        statsRef.set(mapOf("count" to 1), com.google.firebase.firestore.SetOptions.merge())
+                    }
+                onComplete(true)
+            }
+            .addOnFailureListener { onComplete(false) }
+    }
+
+    fun deleteLuminaryProject(projectId: String, onComplete: (Boolean) -> Unit) {
+        getLuminaryProjectsCollection().document(projectId).delete()
+            .addOnSuccessListener {
+                val statsRef = db.collection("luminary").document("projects")
+                statsRef.get().addOnSuccessListener { snapshot ->
+                    if (snapshot.exists()) {
+                        statsRef.update("count", FieldValue.increment(-1))
+                    }
+                }
+                onComplete(true)
+            }
+            .addOnFailureListener { onComplete(false) }
+    }
+
+    /**
+     * Updates an existing project in the luminary collection.
+     */
+    fun updateLuminaryProject(project: Project, onComplete: (Boolean) -> Unit) {
+        if (project.id.isEmpty()) {
+            onComplete(false)
+            return
+        }
+
+        val projectData = hashMapOf(
+            "name" to project.name,
+            "status" to project.status,
+            "budget" to project.budget,
+            "spent" to project.spent,
+            "progress" to project.progress,
+            "lastUpdated" to FieldValue.serverTimestamp(),
+            "imageUrl" to project.imageUrl,
+            "description" to project.description,
+            "location" to project.location,
+            "client" to project.client,
+            "category" to project.category,
+            "groupLeaderId" to project.groupLeaderId,
+            "groupLeaderIds" to project.groupLeaderIds
+        )
+
+        getLuminaryProjectsCollection().document(project.id).update(projectData as Map<String, Any>)
+            .addOnSuccessListener { onComplete(true) }
+            .addOnFailureListener { onComplete(false) }
+    }
+
+    /**
+     * Fetches a single luminary project by ID.
+     */
+    fun getLuminaryProjectById(projectId: String): Flow<Project?> = callbackFlow {
+        val registration = getLuminaryProjectsCollection().document(projectId)
+            .addSnapshotListener { doc, error ->
+                if (error != null) {
+                    trySend(null)
+                    return@addSnapshotListener
+                }
+                if (doc != null && doc.exists()) {
+                    trySend(mapToProjectUi(doc))
+                } else {
+                    trySend(null)
+                }
+            }
+        awaitClose { registration.remove() }
     }
 
     fun updateTaskStatus(projectId: String, taskId: String, isDone: Boolean, onComplete: (Boolean) -> Unit) {
@@ -518,4 +695,125 @@ object FirestoreService {
             .addOnSuccessListener { onComplete(true) }
             .addOnFailureListener { onComplete(false) }
     }
+
+    /**
+     * luminary dashboards for selected tabs
+     */
+
+    /**
+     * OverView Tab - Fetches real-time financial stats including monthly data for a specific year.
+     * Logic: Listens to /luminary/financials/years/{year}/months/ documents.
+     */
+    fun getLumDashStats(year: Int): Flow<com.example.luminarysolutions.data.firebase.lumOverviewDashboardStats> = callbackFlow {
+        // Industry Practice: Collection names are case-sensitive. 
+        val orgCol = db.collection("luminary")
+
+        var projectsCount = 0
+        var totalExpenses = 0
+        var totalRevenue = 0
+        var activeClientCount = 0
+        var monthlyStats = emptyList<com.example.luminarysolutions.data.firebase.MonthlyFinancialStats>()
+
+        val emit = {
+            // Logic: If top-level totals are missing, sum them up from monthly stats
+            val displayRevenue = if (totalRevenue == 0 && monthlyStats.isNotEmpty()) monthlyStats.sumOf { it.revenue } else totalRevenue
+            val displayExpenses = if (totalExpenses == 0 && monthlyStats.isNotEmpty()) monthlyStats.sumOf { it.expenses } else totalExpenses
+            val totalProfit = displayRevenue - displayExpenses
+            
+            trySend(com.example.luminarysolutions.data.firebase.lumOverviewDashboardStats(
+                totalRevenue = displayRevenue,
+                totalExpenses = displayExpenses,
+                totalProfit = totalProfit,
+                totalProjects = projectsCount,
+                totalActiveClient = activeClientCount,
+                monthlyStats = monthlyStats
+            ))
+        }
+
+        // Listen for static dashboard metrics
+        val pListener = orgCol.document("projects").addSnapshotListener { doc, _ ->
+            projectsCount = (doc?.get("count") as? Number)?.toInt() ?: 0
+            emit()
+        }
+        val rListener = orgCol.document("revenue").addSnapshotListener { doc, _ ->
+            totalRevenue = (doc?.get("revenue") as? Number)?.toInt() ?: (doc?.get("totalAmount") as? Number)?.toInt() ?: 0
+            emit()
+        }
+        val eListener = orgCol.document("expenses").addSnapshotListener { doc, _ ->
+            totalExpenses = (doc?.get("expense") as? Number)?.toInt() ?: (doc?.get("totalAmount") as? Number)?.toInt() ?: 0
+            emit()
+        }
+        val cListener = orgCol.document("clients").addSnapshotListener { doc, _ ->
+            activeClientCount = (doc?.get("count") as? Number)?.toInt() ?: 0
+            emit()
+        }
+
+        // Path: /luminary/financials/years/2026/months/
+        val mListener = orgCol.document("financials")
+            .collection("years")
+            .document(year.toString())
+            .collection("months")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("FirestoreService", "DB Error at $year/months: ${error.message}")
+                    return@addSnapshotListener
+                }
+                
+                if (snapshot != null && !snapshot.isEmpty) {
+                    Log.d("FirestoreService", "Found ${snapshot.size()} documents in $year/months")
+                    val unsortedStats = snapshot.documents.mapNotNull { doc ->
+                        // Handle both Number and potential String types for robustness
+                        val rev = (doc.get("revenue") as? Number)?.toInt() ?: doc.getString("revenue")?.toIntOrNull() ?: 0
+                        val exp = (doc.get("expense") as? Number)?.toInt() ?: doc.getString("expense")?.toIntOrNull() ?: 0
+                        
+                        Log.d("FirestoreService", "Month document ${doc.id}: rev=$rev, exp=$exp")
+                        
+                        com.example.luminarysolutions.data.firebase.MonthlyFinancialStats(
+                            month = doc.id.lowercase(), 
+                            revenue = rev,
+                            expenses = exp 
+                        )
+                    }
+
+                    // Sort chronologically (Jan -> Dec)
+                    monthlyStats = unsortedStats.sortedBy { monthOrder.indexOf(it.month) }
+                    Log.d("FirestoreService", "Successfully updated monthlyStats. Size: ${monthlyStats.size}")
+                    emit()
+                } else {
+                    Log.d("FirestoreService", "Snapshot is empty for path: luminary/financials/years/$year/months")
+                    monthlyStats = emptyList()
+                    emit()
+                }
+            }
+
+        awaitClose {
+            pListener.remove()
+            eListener.remove()
+            rListener.remove()
+            cListener.remove()
+            mListener.remove()
+        }
+    }
+
+    fun getDocuments(): Flow<List<com.example.luminarysolutions.data.models.Document>> = callbackFlow {
+        val registration = db.collection("luminary").document("documents").collection("items")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, _ ->
+                val docs = snapshot?.documents?.mapNotNull { doc ->
+                    com.example.luminarysolutions.data.models.Document(
+                        id = doc.id,
+                        name = doc.getString("name") ?: "Unnamed",
+                        description = doc.getString("description") ?: "",
+                        category = doc.getString("category") ?: "PDF",
+                        uploader = doc.getString("uploader") ?: "System",
+                        date = doc.getString("date") ?: "Today",
+                        size = doc.getString("size") ?: "0 KB"
+                    )
+                } ?: emptyList()
+                trySend(docs)
+            }
+        awaitClose { registration.remove() }
+    }
+
+
 }
