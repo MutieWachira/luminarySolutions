@@ -1,4 +1,4 @@
-package com.example.luminarysolutions.ui.ceo
+package com.example.luminarysolutions.ui.ceo.Dashboard
 
 import java.util.Locale
 import android.net.Uri
@@ -25,9 +25,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -42,8 +40,13 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.luminarysolutions.data.firebase.DashboardStats
 import com.example.luminarysolutions.ui.auth.UserRole
+import com.example.luminarysolutions.ui.ceo.AddProjectDialog
+import com.example.luminarysolutions.ui.ceo.CEODashboardUiState
+import com.example.luminarysolutions.ui.ceo.CEODashboardViewModel
+import com.example.luminarysolutions.ui.ceo.ProjectsViewModel
 import com.example.luminarysolutions.ui.login.LoginViewModel
 import com.example.luminarysolutions.ui.navigation.Screen
+import com.example.luminarysolutions.ui.theme.LuminarySolutionsTheme
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -79,7 +82,15 @@ fun CEODashboardScreen(
         AddProjectDialog(
             onDismiss = { showAddProjectDialog = false },
             onSave = { name, budget, description, location, startDate, imageUrl, imageUri ->
-                projectsViewModel.addProject(name, budget, description, location, startDate, imageUrl, imageUri)
+                projectsViewModel.addProject(
+                    name,
+                    budget,
+                    description,
+                    location,
+                    startDate,
+                    imageUrl,
+                    imageUri
+                )
                 showAddProjectDialog = false
             }
         )
@@ -976,16 +987,20 @@ fun InitiativeCard(initiative: Initiative, modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 fun CEODashboardPreview() {
-    CEODashboardContent(
-        uiState = CEODashboardUiState(stats = DashboardStats(12, 85, 450000)),
-        onLogout = {},
-        onNavigateToProjects = {},
-        onNavigateToDonors = {},
-        onNavigateToPartners = {},
-        onNavigateToReports = {},
-        onNavigateToApprovals = {},
-        onNavigateToExpenses = {},
-        onNavigateToLuminaryDetails = {},
-        onAddProjectClick = {}
-    )
+    LuminarySolutionsTheme {
+        CEODashboardContent(
+            uiState = CEODashboardUiState(
+                isLoading = false
+            ),
+            onLogout = {},
+            onNavigateToProjects = {},
+            onNavigateToDonors = {},
+            onNavigateToPartners = {},
+            onNavigateToReports = {},
+            onNavigateToApprovals = {},
+            onNavigateToExpenses = {},
+            onNavigateToLuminaryDetails = {},
+            onAddProjectClick = {}
+        )
+    }
 }

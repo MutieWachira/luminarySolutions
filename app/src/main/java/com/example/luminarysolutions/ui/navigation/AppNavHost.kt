@@ -10,6 +10,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.luminarysolutions.ui.auth.UserRole
 import com.example.luminarysolutions.ui.ceo.*
+import com.example.luminarysolutions.ui.ceo.Dashboard.CEODashboardScreen
 import com.example.luminarysolutions.ui.donor.*
 import com.example.luminarysolutions.ui.login.LoginScreen
 import com.example.luminarysolutions.ui.login.LoginViewModel
