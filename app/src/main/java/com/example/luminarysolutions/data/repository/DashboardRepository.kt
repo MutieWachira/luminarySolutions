@@ -6,6 +6,7 @@ import com.example.luminarysolutions.data.firebase.StorageService
 import com.example.luminarysolutions.data.firebase.lumOverviewDashboardStats
 import com.example.luminarysolutions.data.models.Approval
 import com.example.luminarysolutions.data.models.Document
+import com.example.luminarysolutions.data.models.Freelance
 import com.example.luminarysolutions.data.models.Project
 import com.example.luminarysolutions.data.models.User
 import android.net.Uri
@@ -29,26 +30,44 @@ class DashboardRepository {
     }
 
     // Luminary Projects
-    fun getLuminaryProjects(): Flow<List<Project>> = FirestoreService.getLuminaryProjects()
+    fun getLuminaryProjects(): Flow<List<Freelance>> = FirestoreService.getLuminaryProjects()
     
-    fun addLuminaryProject(project: Project, onComplete: (Boolean) -> Unit) {
-        FirestoreService.addLuminaryProject(project, onComplete)
+    fun addLuminaryProject(freelance: Freelance, onComplete: (Boolean) -> Unit) {
+        FirestoreService.addLuminaryProject(freelance, onComplete)
     }
 
     fun deleteLuminaryProject(projectId: String, onComplete: (Boolean) -> Unit) {
         FirestoreService.deleteLuminaryProject(projectId, onComplete)
     }
 
-    fun updateLuminaryProject(project: Project, onComplete: (Boolean) -> Unit) {
-        FirestoreService.updateLuminaryProject(project, onComplete)
+    fun updateLuminaryProject(freelance: Freelance, onComplete: (Boolean) -> Unit) {
+        FirestoreService.updateLuminaryProject(freelance, onComplete)
     }
 
-    fun getLuminaryProjectById(projectId: String): Flow<Project?> = FirestoreService.getLuminaryProjectById(projectId)
+    fun getLuminaryProjectById(projectId: String): Flow<Freelance?> = FirestoreService.getLuminaryProjectById(projectId)
 
     suspend fun uploadImage(uri: Uri): String? {
         return StorageService.uploadProjectImage(uri)
     }
 
     fun getTeamMembers(): Flow<List<User>> = FirestoreService.getTeamMembers()
+
+    fun getTeams(): Flow<List<com.example.luminarysolutions.data.models.Team>> = FirestoreService.getTeams()
+
+    fun addTeamMember(team: com.example.luminarysolutions.data.models.Team, onComplete: (Boolean) -> Unit) {
+        FirestoreService.addTeamMember(team, onComplete)
+    }
+
+    fun updateTeamMember(team: com.example.luminarysolutions.data.models.Team, onComplete: (Boolean) -> Unit) {
+        FirestoreService.updateTeamMember(team, onComplete)
+    }
+
+    fun deleteTeamMember(teamId: String, onComplete: (Boolean) -> Unit) {
+        FirestoreService.deleteTeamMember(teamId, onComplete)
+    }
+
+    fun getTeamCulture(): Flow<com.example.luminarysolutions.data.models.TeamCulture> = FirestoreService.getTeamCulture()
+
+    fun getUsersByIds(ids: List<String>): Flow<List<User>> = FirestoreService.getUsersByIds(ids)
 }
 

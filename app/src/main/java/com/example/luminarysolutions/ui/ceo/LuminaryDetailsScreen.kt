@@ -8,7 +8,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -29,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.luminarysolutions.data.models.Freelance
 import com.example.luminarysolutions.data.models.Project
 import com.example.luminarysolutions.ui.ceo.FinancialSummaryCard
 import com.example.luminarysolutions.ui.theme.LuminarySolutionsTheme
@@ -54,9 +58,19 @@ fun LuminaryDetailsScreen(
         onAddProject = { dashboardViewModel.addLuminaryProject(it) { } },
         onDeleteProject = { dashboardViewModel.deleteLuminaryProject(it) { } },
         onUpdateProject = { dashboardViewModel.updateLuminaryProject(it) { } },
+        onSearchQueryChange = { dashboardViewModel.updateSearchQuery(it) },
+        onStatusFilterChange = { dashboardViewModel.updateStatusFilter(it) },
+        onSortOrderChange = { dashboardViewModel.updateSortOrder(it) },
+        onAddTeamMember = { dashboardViewModel.addTeamMember(it) { } },
+        onDeleteTeamMember = { dashboardViewModel.deleteTeamMember(it) { } },
+        onUpdateTeamMember = { dashboardViewModel.updateTeamMember(it) { } },
+        onTeamSearchQueryChange = { dashboardViewModel.updateTeamSearchQuery(it) },
+        onTeamStatusFilterChange = { dashboardViewModel.updateTeamStatusFilter(it) },
+        onTeamSortOrderChange = { dashboardViewModel.updateTeamSortOrder(it) },
+        onTeamPageChange = { dashboardViewModel.updateTeamPage(it) },
         onBackClick = { navController.popBackStack() },
         onProjectClick = { projectId ->
-            navController.navigate(com.example.luminarysolutions.ui.navigation.Screen.ProjectDetails.createRoute(projectId))
+            navController.navigate(com.example.luminarysolutions.ui.navigation.Screen.FreelanceDetails.createRoute(projectId))
         }
     )
 }
@@ -67,36 +81,70 @@ fun LuminaryDetailsContent(
     uiState: CEODashboardUiState,
     selectedYear: Int,
     onYearSelected: (Int) -> Unit,
-    onAddProject: (Project) -> Unit,
+    onAddProject: (Freelance) -> Unit,
     onDeleteProject: (String) -> Unit,
-    onUpdateProject: (Project) -> Unit,
+    onUpdateProject: (Freelance) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onStatusFilterChange: (String) -> Unit,
+    onSortOrderChange: (String) -> Unit,
+    onAddTeamMember: (com.example.luminarysolutions.data.models.Team) -> Unit,
+    onDeleteTeamMember: (String) -> Unit,
+    onUpdateTeamMember: (com.example.luminarysolutions.data.models.Team) -> Unit,
+    onTeamSearchQueryChange: (String) -> Unit,
+    onTeamStatusFilterChange: (String) -> Unit,
+    onTeamSortOrderChange: (String) -> Unit,
+    onTeamPageChange: (Int) -> Unit,
     onBackClick: () -> Unit,
     onProjectClick: (String) -> Unit
 ) {
     // Local state for tab navigation within the details screen
     var selectedTabIndex by remember { mutableIntStateOf(2) }
     var showAddProjectDialog by remember { mutableStateOf(false) }
-    var projectToEdit by remember { mutableStateOf<Project?>(null) }
+    var projectToEdit by remember { mutableStateOf<Freelance?>(null) }
+    
+    var showAddTeamDialog by remember { mutableStateOf(false) }
+    var teamToEdit by remember { mutableStateOf<com.example.luminarysolutions.data.models.Team?>(null) }
 
     if (showAddProjectDialog) {
-        AddProjectDialog(
-            teamMembers = uiState.teamMembers,
+        AddFreelanceDialog(
+            teamMembers = uiState.teams,
             onDismiss = { showAddProjectDialog = false },
-            onConfirm = { project ->
-                onAddProject(project)
+            onConfirm = { freelance ->
+                onAddProject(freelance)
                 showAddProjectDialog = false
             }
         )
     }
 
     if (projectToEdit != null) {
-        EditProjectDialog(
-            project = projectToEdit!!,
-            teamMembers = uiState.teamMembers,
+        EditFreelanceDialog(
+            freelance = projectToEdit!!,
+            teamMembers = uiState.teams,
             onDismiss = { projectToEdit = null },
-            onConfirm = { updatedProject ->
-                onUpdateProject(updatedProject)
+            onConfirm = { updatedFreelance ->
+                onUpdateProject(updatedFreelance)
                 projectToEdit = null
+            }
+        )
+    }
+
+    if (showAddTeamDialog) {
+        AddTeamMemberDialog(
+            onDismiss = { showAddTeamDialog = false },
+            onConfirm = { team ->
+                onAddTeamMember(team)
+                showAddTeamDialog = false
+            }
+        )
+    }
+
+    if (teamToEdit != null) {
+        EditTeamMemberDialog(
+            team = teamToEdit!!,
+            onDismiss = { teamToEdit = null },
+            onConfirm = { updatedTeam ->
+                onUpdateTeamMember(updatedTeam)
+                teamToEdit = null
             }
         )
     }
@@ -164,11 +212,26 @@ fun LuminaryDetailsContent(
                         onAddProjectClick = { showAddProjectDialog = true },
                         onDeleteProject = onDeleteProject,
                         onEditProject = { projectToEdit = it },
-                        onProjectClick = onProjectClick
+                        onProjectClick = onProjectClick,
+                        onSearchQueryChange = onSearchQueryChange,
+                        onStatusFilterChange = onStatusFilterChange,
+                        onSortOrderChange = onSortOrderChange
                     )
                     3 -> PerformanceTabContent()
-                    4 -> DocumentsTabContent()
-                    5 -> TeamTabContent()
+                    4 -> DocumentsTabContent(
+                        uiState = uiState,
+                        onPageSelected = onTeamPageChange
+                    )
+                    5 -> TeamTabContent(
+                        uiState = uiState,
+                        onAddTeamClick = { showAddTeamDialog = true },
+                        onDeleteTeamMember = onDeleteTeamMember,
+                        onEditTeamMember = { teamToEdit = it },
+                        onSearchQueryChange = onTeamSearchQueryChange,
+                        onStatusFilterChange = onTeamStatusFilterChange,
+                        onSortOrderChange = onTeamSortOrderChange,
+                        onPageSelected = onTeamPageChange
+                    )
                     else -> {
                         // Placeholder for other tabs
                         Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
@@ -392,16 +455,21 @@ fun ProjectsTabContent(
     uiState: CEODashboardUiState,
     onAddProjectClick: () -> Unit,
     onDeleteProject: (String) -> Unit,
-    onEditProject: (Project) -> Unit,
-    onProjectClick: (String) -> Unit
+    onEditProject: (Freelance) -> Unit,
+    onProjectClick: (String) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onStatusFilterChange: (String) -> Unit,
+    onSortOrderChange: (String) -> Unit
 ) {
     val projects = uiState.luminaryProjects
-    val totalProjects = projects.size
-    val completedProjects = projects.count { it.status == "Completed" }
-    val inProgressProjects = projects.count { it.status == "In Progress" }
-    val onHoldProjects = projects.count { it.status == "On Hold" }
+    
+    // Performance Optimization: Use remember to compute stats only when the projects list changes
+    val totalProjects = remember(projects) { projects.size }
+    val completedProjects = remember(projects) { projects.count { it.status == "Completed" } }
+    val inProgressProjects = remember(projects) { projects.count { it.status == "In Progress" || it.status == "Active" } }
+    val pendingProjects = remember(projects) { projects.count { it.status == "Pending" } }
 
-    var projectToDelete by remember { mutableStateOf<Project?>(null) }
+    var projectToDelete by remember { mutableStateOf<Freelance?>(null) }
 
     if (projectToDelete != null) {
         AlertDialog(
@@ -472,13 +540,12 @@ fun ProjectsTabContent(
                 )
             }
 
-            // Row 2
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 ProjectStatusMiniCard(
-                    label = "In Progress",
+                    label = "Active Services",
                     value = inProgressProjects.toString(),
                     trend = "+3",
                     icon = Icons.Default.Pending,
@@ -486,10 +553,10 @@ fun ProjectsTabContent(
                     modifier = Modifier.weight(1f)
                 )
                 ProjectStatusMiniCard(
-                    label = "On Hold",
-                    value = onHoldProjects.toString(),
-                    trend = "-1",
-                    icon = Icons.Default.PauseCircle,
+                    label = "Pending Requests",
+                    value = pendingProjects.toString(),
+                    trend = "+5",
+                    icon = Icons.Default.HourglassEmpty,
                     color = Color(0xFFF59E0B),
                     modifier = Modifier.weight(1f)
                 )
@@ -499,22 +566,43 @@ fun ProjectsTabContent(
 
         // Search and Filters
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                placeholder = { Text("Search projects...", fontSize = 12.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(18.dp)) },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color(0xFFF8F9FA), unfocusedBorderColor = Color.Transparent)
+            SearchTextField(
+                value = uiState.searchQuery,
+                onValueChange = onSearchQueryChange,
+                placeholder = "Search projects...",
+                modifier = Modifier.weight(1f)
             )
+
+            // Dedicated Search Button for consistency and accessibility
+            IconButton(
+                onClick = { /* Search is already reactive */ },
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(Color(0xFFF8F9FA), RoundedCornerShape(12.dp))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
             
-            FilterDropdown("All Status")
-            FilterDropdown("Sort: Newest")
+            FilterDropdown(
+                text = uiState.statusFilter,
+                options = listOf("All Status", "Pending", "Active", "Completed"),
+                onSelected = onStatusFilterChange
+            )
+            FilterDropdown(
+                text = "Sort: ${uiState.sortOrder}",
+                options = listOf("Newest", "Oldest", "Team Size", "Applicants"),
+                onSelected = onSortOrderChange
+            )
             
             IconButton(onClick = {}) {
                 Icon(Icons.Default.FilterList, null)
@@ -583,15 +671,11 @@ fun ProjectsTabContent(
                                 name = project.name,
                                 status = project.status,
                                 imageUrl = project.imageUrl,
-                                client = "${project.client} • ${project.category}",
+                                category = project.category,
                                 description = project.description,
-                                dates = "Started: ${SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(project.startDate))}",
-                                teamSize = project.volunteers.size,
-                                progress = project.progress,
-                                budget = "$${String.format("%,d", project.budget)}",
-                                spent = "$${String.format("%,d", project.spent)}",
-                                indicator = if (project.spent > project.budget) "Over Budget" else "On Track",
-                                indicatorColor = if (project.spent > project.budget) Color.Red else Color(0xFF10B981),
+                                dates = "Created: ${SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(project.createdAt))}",
+                                teamSize = project.teamIds.size,
+                                clientCount = project.clientIds.size,
                                 modifier = Modifier.clickable { onProjectClick(project.id) }
                             )
                         }
@@ -600,23 +684,13 @@ fun ProjectsTabContent(
             }
         }
         
-        // Pagination
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Showing 1-${projects.size} of $totalProjects projects", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                PaginationButton("<", false)
-                PaginationButton("1", true)
-                PaginationButton("2", false)
-                PaginationButton("3", false)
-                PaginationButton("...", false)
-                PaginationButton("5", false)
-                PaginationButton(">", false)
-            }
-        }
+        // Modern Interactive Pagination
+        InteractivePagination(
+            currentPage = 1,
+            totalPages = (totalProjects / 10).coerceAtLeast(1),
+            onPageSelected = {},
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -665,19 +739,40 @@ fun ProjectStatusMiniCard(
 }
 
 @Composable
-fun FilterDropdown(text: String) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
-        color = Color.White
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+fun FilterDropdown(
+    text: String,
+    options: List<String> = emptyList(),
+    onSelected: (String) -> Unit = {}
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        Surface(
+            onClick = { expanded = true },
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
+            color = Color.White
         ) {
-            Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
-            Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp), tint = Color.Gray)
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp), tint = Color.Gray)
+            }
+        }
+
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, style = MaterialTheme.typography.labelSmall) },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }
@@ -687,15 +782,11 @@ fun DetailedProjectCard(
     name: String,
     status: String,
     imageUrl: String?,
-    client: String,
+    category: String,
     description: String,
     dates: String,
     teamSize: Int,
-    progress: Float,
-    budget: String,
-    spent: String,
-    indicator: String,
-    indicatorColor: Color,
+    clientCount: Int,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -714,7 +805,7 @@ fun DetailedProjectCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.Top
             ) {
-                // Project Image - Compact for mobile
+                // Project Image
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFFF1F5F9),
@@ -759,8 +850,9 @@ fun DetailedProjectCard(
                         Surface(
                             shape = RoundedCornerShape(4.dp),
                             color = when(status) {
-                                "In Progress" -> Color(0xFF0EA5E9).copy(alpha = 0.1f)
+                                "Active" -> Color(0xFF0EA5E9).copy(alpha = 0.1f)
                                 "Completed" -> Color(0xFF10B981).copy(alpha = 0.1f)
+                                "Pending" -> Color(0xFFF59E0B).copy(alpha = 0.1f)
                                 else -> Color.Gray.copy(alpha = 0.1f)
                             }
                         ) {
@@ -769,8 +861,9 @@ fun DetailedProjectCard(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = when(status) {
-                                    "In Progress" -> Color(0xFF0EA5E9)
+                                    "Active" -> Color(0xFF0EA5E9)
                                     "Completed" -> Color(0xFF10B981)
+                                    "Pending" -> Color(0xFFF59E0B)
                                     else -> Color.Gray
                                 },
                                 fontSize = 9.sp,
@@ -778,7 +871,7 @@ fun DetailedProjectCard(
                             )
                         }
                     }
-                    Text(client, style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 10.sp)
+                    Text(category, style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 10.sp)
                 }
             }
 
@@ -793,88 +886,181 @@ fun DetailedProjectCard(
                 lineHeight = 16.sp
             )
 
-            // Info and Metrics
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Info Row (Dates & Team)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Default.CalendarToday, null, tint = Color.Gray, modifier = Modifier.size(12.dp))
-                        Text(dates, style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 9.sp)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Default.Group, null, tint = Color.Gray, modifier = Modifier.size(12.dp))
-                        Text("Team: $teamSize", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 9.sp)
-                    }
+            // Info Row (Dates & Team & Clients)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Default.CalendarToday, null, tint = Color.Gray, modifier = Modifier.size(12.dp))
+                    Text(dates, style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 9.sp)
                 }
-
-                HorizontalDivider(color = Color(0xFFF1F5F9))
-
-                // Metrics Row (Progress + Financials + Indicator)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Progress
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Progress", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 9.sp)
-                            Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-                        }
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-                            color = when {
-                                progress >= 1f -> Color(0xFF10B981)
-                                progress >= 0.7f -> Color(0xFF0EA5E9)
-                                else -> Color(0xFF6366F1)
-                            },
-                            trackColor = Color(0xFFF1F5F9)
-                        )
-                    }
-
-                    // Financials and Indicator
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("Budget", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 8.sp)
-                                Text(budget, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("Spent", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 8.sp)
-                                Text(spent, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(indicatorColor))
-                            Text(indicator, style = MaterialTheme.typography.labelSmall, color = indicatorColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Default.Group, null, tint = Color.Gray, modifier = Modifier.size(12.dp))
+                    Text("Team: $teamSize", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 9.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Default.Person, null, tint = Color.Gray, modifier = Modifier.size(12.dp))
+                    Text("Applicants: $clientCount", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 9.sp)
                 }
             }
         }
     }
 }
 
+/**
+ * Modern Interactive Pagination component.
+ * Provides a highly responsive and animated UI for page navigation.
+ * Uses Material 3 principles and optimized performance.
+ */
 @Composable
-fun PaginationButton(text: String, isSelected: Boolean) {
+fun InteractivePagination(
+    currentPage: Int,
+    totalPages: Int,
+    onPageSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Performance: Avoid recomposing the whole row if only the page changes
+    // Using Surface for better elevation and depth
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        border = if (isSelected) null else BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.3f)),
-        modifier = Modifier.size(28.dp)
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp),
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFF8F9FA).copy(alpha = 0.8f),
+                border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.2f))
+            ) {
+                Text(
+                    text = "Page $currentPage of $totalPages",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Gray,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                )
+            }
+            
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Previous Button with interactive state
+                PaginationButton(
+                    onClick = { if (currentPage > 1) onPageSelected(currentPage - 1) },
+                    enabled = currentPage > 1,
+                    icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft
+                )
+
+                // Visible Pages Logic - Industry standard dynamic page calculation
+                val pagesToShow = remember(currentPage, totalPages) {
+                    calculateVisiblePages(currentPage, totalPages)
+                }
+                
+                pagesToShow.forEach { page ->
+                    if (page == -1) {
+                        Text(
+                            "...", 
+                            style = MaterialTheme.typography.bodySmall, 
+                            color = Color.LightGray, 
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    } else {
+                        val isSelected = page == currentPage
+                        PageNumberButton(
+                            page = page,
+                            isSelected = isSelected,
+                            onClick = { onPageSelected(page) }
+                        )
+                    }
+                }
+                
+                // Next Button
+                PaginationButton(
+                    onClick = { if (currentPage < totalPages) onPageSelected(currentPage + 1) },
+                    enabled = currentPage < totalPages,
+                    icon = Icons.AutoMirrored.Filled.KeyboardArrowRight
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaginationButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    icon: ImageVector
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        color = if (enabled) Color(0xFFF1F5F9) else Color.Transparent,
+        border = if (enabled) BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.2f)) else null,
+        modifier = Modifier.size(38.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = if (enabled) Color.DarkGray else Color.LightGray.copy(alpha = 0.5f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PageNumberButton(
+    page: Int,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        label = "pageBg"
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (isSelected) Color.White else Color.Gray,
+        label = "pageText"
+    )
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = backgroundColor,
+        border = if (isSelected) null else BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.2f)),
+        modifier = Modifier.size(38.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
-                text,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isSelected) Color.White else Color.Gray,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                text = page.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor,
+                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold
             )
+        }
+    }
+}
+
+/**
+ * Helper to calculate visible page numbers for pagination.
+ */
+private fun calculateVisiblePages(currentPage: Int, totalPages: Int): List<Int> {
+    return if (totalPages <= 5) (1..totalPages).toList()
+    else {
+        when {
+            currentPage <= 3 -> listOf(1, 2, 3, 4, -1, totalPages)
+            currentPage >= totalPages - 2 -> listOf(1, -1, totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+            else -> listOf(1, -1, currentPage - 1, currentPage, currentPage + 1, -1, totalPages)
         }
     }
 }
@@ -2022,7 +2208,10 @@ fun ActionItem(title: String, subtitle: String, icon: ImageVector, color: Color)
  * Content for the Documents Tab
  */
 @Composable
-fun DocumentsTabContent() {
+fun DocumentsTabContent(
+    uiState: CEODashboardUiState,
+    onPageSelected: (Int) -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         // Documents Header
         Row(
@@ -2042,14 +2231,11 @@ fun DocumentsTabContent() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedTextField(
+            SearchTextField(
                 value = "",
                 onValueChange = {},
-                placeholder = { Text("Search documents...", fontSize = 12.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(18.dp)) },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color(0xFFF8F9FA), unfocusedBorderColor = Color.Transparent)
+                placeholder = "Search documents...",
+                modifier = Modifier.weight(1f)
             )
             
             Surface(
@@ -2100,23 +2286,13 @@ fun DocumentsTabContent() {
             DocumentRowItem("Budget vs Actual - Apr 2025", "Detailed budget analysis", "Financials", "Sarah Kim", "May 2, 2025", "1.7 MB", Color(0xFF10B981), Icons.Default.TableChart)
         }
 
-        // Pagination
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Showing 1-10 of 48 documents", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                PaginationButton("<", false)
-                PaginationButton("1", true)
-                PaginationButton("2", false)
-                PaginationButton("3", false)
-                PaginationButton("...", false)
-                PaginationButton("5", false)
-                PaginationButton(">", false)
-            }
-        }
+        // Modern Interactive Pagination
+        InteractivePagination(
+            currentPage = uiState.teamCurrentPage,
+            totalPages = uiState.teamTotalPages,
+            onPageSelected = onPageSelected,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -2203,8 +2379,53 @@ fun DocumentRowItem(name: String, desc: String, category: String, uploader: Stri
 /**
  * Content for the Team Tab
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TeamTabContent() {
+fun TeamTabContent(
+    uiState: CEODashboardUiState,
+    onAddTeamClick: () -> Unit,
+    onDeleteTeamMember: (String) -> Unit,
+    onEditTeamMember: (com.example.luminarysolutions.data.models.Team) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onStatusFilterChange: (String) -> Unit,
+    onSortOrderChange: (String) -> Unit,
+    onPageSelected: (Int) -> Unit
+) {
+    val teams = uiState.teams
+    
+    // Performance Optimization: Use counts from ViewModel for accuracy
+    val totalMembers = uiState.totalTeamsCount
+    val activeMembers = uiState.totalActiveTeamsCount
+    val departmentsCount = uiState.totalDepartmentsCount
+
+    var memberToDelete by remember { mutableStateOf<com.example.luminarysolutions.data.models.Team?>(null) }
+    
+    // ... (rest of the dialog logic stays same)
+
+    if (memberToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { memberToDelete = null },
+            title = { Text("Remove Team Member") },
+            text = { Text("Are you sure you want to remove '${memberToDelete?.name}' from the team? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        memberToDelete?.id?.let { onDeleteTeamMember(it) }
+                        memberToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { memberToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         // Team Header
         Row(
@@ -2218,77 +2439,121 @@ fun TeamTabContent() {
             }
         }
 
-        // Search and Actions
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                placeholder = { Text("Search team members...", fontSize = 12.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(18.dp)) },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Color(0xFFF8F9FA), unfocusedBorderColor = Color.Transparent)
-            )
-            
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFF8F9FA),
-                modifier = Modifier.height(48.dp)
+        // Improved Search and Actions Layout
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Row 1: Search Box (Full Width for better visibility as requested)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.FilterList, null, tint = Color.Gray)
+                SearchTextField(
+                    value = uiState.teamSearchQuery,
+                    onValueChange = onSearchQueryChange,
+                    placeholder = "Search team members by name, email or dept...",
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Add Team button in same row as search for convenience
+                IconButton(
+                    onClick = onAddTeamClick,
+                    modifier = Modifier
+                        .size(52.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Team Member",
+                        tint = Color.White
+                    )
                 }
             }
             
-            Button(
-                onClick = {},
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                contentPadding = PaddingValues(horizontal = 16.dp)
+            // Row 2: Filters and Sorting
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Default.PersonAdd, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Invite", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Box(modifier = Modifier.weight(1f)) {
+                    FilterDropdown(
+                        text = "Status: ${uiState.teamStatusFilter}",
+                        options = listOf("All Status", "Active", "Inactive"),
+                        onSelected = onStatusFilterChange
+                    )
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    FilterDropdown(
+                        text = "Sort: ${uiState.teamSortOrder}",
+                        options = listOf("Newest", "Name (A-Z)", "Name (Z-A)", "Department"),
+                        onSelected = onSortOrderChange
+                    )
+                }
             }
         }
 
-        // Metrics Summary - Scrollable Row
+        // Metrics Summary - Real-time
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            TeamMetricCard("Total Members", "38", "+8%", Icons.Default.Groups, Color(0xFF6366F1))
-            TeamMetricCard("Leadership Team", "8", "+12%", Icons.Default.AdminPanelSettings, Color(0xFF10B981))
-            TeamMetricCard("Departments", "6", "—", Icons.Default.AccountTree, Color(0xFF0EA5E9))
-            TeamMetricCard("New This Quarter", "3", "+3", Icons.Default.TrendingUp, Color(0xFFF59E0B))
+            TeamMetricCard("Total Members", totalMembers.toString(), "+8%", Icons.Default.Groups, Color(0xFF6366F1))
+            TeamMetricCard("Active Members", activeMembers.toString(), "+12%", Icons.Default.CheckCircle, Color(0xFF10B981))
+            TeamMetricCard("Departments", departmentsCount.toString(), "—", Icons.Default.AccountTree, Color(0xFF0EA5E9))
             TeamMetricCard("Open Positions", "4", "+2", Icons.Default.PersonSearch, Color(0xFFF43F5E))
         }
 
         // Leadership Team Section
+        var showAllLeadership by remember { mutableStateOf(false) }
+
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Leadership Team", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text("View all", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    "View all", 
+                    style = MaterialTheme.typography.labelSmall, 
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { showAllLeadership = true }
+                )
             }
+            
+            if (showAllLeadership) {
+                ViewAllLeadershipDialog(
+                    teams = teams.filter { it.jobtitle.contains("Chief", ignoreCase = true) || it.jobtitle.contains("Head", ignoreCase = true) || it.role == com.example.luminarysolutions.ui.auth.UserRole.CEO },
+                    onDismiss = { showAllLeadership = false },
+                    onEdit = onEditTeamMember,
+                    onDelete = { memberToDelete = it }
+                )
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                LeadershipMemberCard("Alex Morgan", "Chief Executive Officer")
-                LeadershipMemberCard("Sarah Kim", "Chief Financial Officer")
-                LeadershipMemberCard("David Ochieng", "Chief Operations Officer")
-                LeadershipMemberCard("Emily Chen", "Chief Strategy Officer")
-                LeadershipMemberCard("Mark Patel", "Head of Investments")
-                LeadershipMemberCard("Lisa Brown", "Head of People & Culture")
+                val leadership = teams.filter { it.jobtitle.contains("Chief", ignoreCase = true) || it.jobtitle.contains("Head", ignoreCase = true) || it.role == com.example.luminarysolutions.ui.auth.UserRole.CEO }
+                
+                if (leadership.isEmpty()) {
+                    // Placeholder if no leadership found
+                    Box(modifier = Modifier.padding(16.dp)) {
+                        Text("No leadership members identified.", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                    }
+                } else {
+                    leadership.forEach { member ->
+                        LeadershipMemberCard(
+                            member = member,
+                            onEdit = { onEditTeamMember(member) },
+                            onDelete = { memberToDelete = member }
+                        )
+                    }
+                }
             }
         }
 
@@ -2296,35 +2561,87 @@ fun TeamTabContent() {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Team Members", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TeamMemberListItem("James Mwangi", "Consulting", "Senior Consultant", "Active", "Jan 15, 2023")
-                TeamMemberListItem("Grace Wanjiku", "Finance", "Financial Analyst", "Active", "Mar 3, 2023")
-                TeamMemberListItem("Kevin Zhang", "Strategy", "Strategy Manager", "Active", "Feb 20, 2023")
-                TeamMemberListItem("Amina Hassan", "Investments", "Investment Associate", "Active", "Apr 10, 2023")
-                TeamMemberListItem("Brian Okello", "Operations", "Operations Manager", "Active", "May 5, 2023")
-                TeamMemberListItem("Nina Kapoor", "Marketing", "Marketing Specialist", "On Leave", "May 12, 2023")
+                if (teams.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                        Text("No team members found", color = Color.Gray)
+                    }
+                } else {
+                    teams.forEach { member ->
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                when (value) {
+                                    SwipeToDismissBoxValue.EndToStart -> memberToDelete = member
+                                    SwipeToDismissBoxValue.StartToEnd -> {
+                                        onEditTeamMember(member)
+                                    }
+                                    else -> {}
+                                }
+                                false
+                            }
+                        )
+
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            backgroundContent = {
+                                val color = when (dismissState.dismissDirection) {
+                                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFF43F5E) // Red for delete
+                                    SwipeToDismissBoxValue.StartToEnd -> Color(0xFF6366F1) // Indigo for edit
+                                    else -> Color.Transparent
+                                }
+                                
+                                val alignment = when (dismissState.dismissDirection) {
+                                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                    else -> Alignment.Center
+                                }
+                                
+                                val icon = when (dismissState.dismissDirection) {
+                                    SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                                    SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Edit
+                                    else -> Icons.Default.Delete
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(color)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = alignment
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = Color.White
+                                    )
+                                }
+                            },
+                            content = {
+                                TeamMemberListItem(
+                                    name = member.name,
+                                    dept = member.department,
+                                    role = member.jobtitle,
+                                    status = if (member.enabled) "Active" else "Inactive",
+                                    date = "Jan 2026", // Mock date as it's not in Team model
+                                    imageUrl = member.imageUrl
+                                )
+                            }
+                        )
+                    }
+                }
             }
         }
 
-        // Pagination
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Showing 1-8 of 38 members", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                PaginationButton("<", false)
-                PaginationButton("1", true)
-                PaginationButton("2", false)
-                PaginationButton("3", false)
-                PaginationButton("...", false)
-                PaginationButton("5", false)
-                PaginationButton(">", false)
-            }
-        }
+        // Modern Interactive Pagination
+        InteractivePagination(
+            currentPage = uiState.teamCurrentPage,
+            totalPages = uiState.teamTotalPages,
+            onPageSelected = onPageSelected,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         // Team Culture Section
-        TeamCultureCard()
+        TeamCultureCard(uiState.culture)
     }
 }
 
@@ -2359,38 +2676,85 @@ fun TeamMetricCard(label: String, value: String, trend: String, icon: ImageVecto
 }
 
 @Composable
-fun LeadershipMemberCard(name: String, role: String) {
+fun LeadershipMemberCard(
+    member: com.example.luminarysolutions.data.models.Team,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = Color.White,
         border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
-        modifier = Modifier.width(130.dp)
+        modifier = Modifier.width(140.dp)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Surface(
-                shape = CircleShape,
-                color = Color(0xFFF1F5F9),
-                modifier = Modifier.size(64.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Person, null, tint = Color.LightGray, modifier = Modifier.size(32.dp))
+            Box(modifier = Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.align(Alignment.TopEnd).size(24.dp)
+                ) {
+                    Icon(Icons.Default.MoreVert, null, modifier = Modifier.size(16.dp), tint = Color.Gray)
+                }
+                
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        leadingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp)) },
+                        onClick = { showMenu = false; onEdit() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete", color = Color.Red) },
+                        leadingIcon = { Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp), tint = Color.Red) },
+                        onClick = { showMenu = false; onDelete() }
+                    )
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFF1F5F9),
+                    modifier = Modifier.size(64.dp).align(Alignment.Center)
+                ) {
+                    if (!member.imageUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = member.imageUrl,
+                            contentDescription = member.name,
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Person, null, tint = Color.LightGray, modifier = Modifier.size(32.dp))
+                        }
+                    }
                 }
             }
+            
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                Text(role, style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 8.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(member.name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(member.jobtitle, style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 8.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Icon(Icons.Default.Link, null, tint = Color(0xFF0077B5), modifier = Modifier.size(16.dp))
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(Icons.Default.Link, null, tint = Color(0xFF0077B5), modifier = Modifier.size(14.dp))
+                if (member.gender.isNotBlank()) {
+                    Text(member.gender.take(1).uppercase(), style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 8.sp)
+                }
+            }
         }
     }
 }
 
 @Composable
-fun TeamMemberListItem(name: String, dept: String, role: String, status: String, date: String) {
+fun TeamMemberListItem(name: String, dept: String, role: String, status: String, date: String, imageUrl: String? = null) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = Color.White,
@@ -2402,8 +2766,17 @@ fun TeamMemberListItem(name: String, dept: String, role: String, status: String,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Surface(shape = CircleShape, color = Color(0xFFF1F5F9), modifier = Modifier.size(40.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Person, null, tint = Color.LightGray, modifier = Modifier.size(20.dp))
+                if (!imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Member Image",
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                } else {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Person, null, tint = Color.LightGray, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -2434,7 +2807,7 @@ fun TeamMemberListItem(name: String, dept: String, role: String, status: String,
 }
 
 @Composable
-fun TeamCultureCard() {
+fun TeamCultureCard(culture: com.example.luminarysolutions.data.models.TeamCulture) {
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = Color(0xFFF8F9FA),
@@ -2454,9 +2827,9 @@ fun TeamCultureCard() {
             }
             
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                CultureMetricItem("Diversity & Inclusion", "38%", "Women in Team", Icons.Default.Groups, Color(0xFF8B5CF6))
-                CultureMetricItem("Employee Satisfaction", "4.6/5", "Average Rating", Icons.Default.ThumbUp, Color(0xFF10B981))
-                CultureMetricItem("Training & Development", "24", "Programs Completed", Icons.Default.School, Color(0xFFF59E0B))
+                CultureMetricItem("Diversity & Inclusion", culture.diversityRate, "Women in Team", Icons.Default.Groups, Color(0xFF8B5CF6))
+                CultureMetricItem("Employee Satisfaction", culture.satisfactionScore, "Average Rating", Icons.Default.ThumbUp, Color(0xFF10B981))
+                CultureMetricItem("Training & Development", culture.trainingPrograms.toString(), "Programs Completed", Icons.Default.School, Color(0xFFF59E0B))
             }
         }
     }
@@ -2480,30 +2853,25 @@ fun CultureMetricItem(label: String, value: String, subValue: String, icon: Imag
     }
 }
 
-@Preview()
 @Composable
-fun AddProjectDialog(
-    teamMembers: List<com.example.luminarysolutions.data.models.User>,
+fun AddTeamMemberDialog(
     onDismiss: () -> Unit,
-    onConfirm: (Project) -> Unit
+    onConfirm: (com.example.luminarysolutions.data.models.Team) -> Unit
 ) {
-    // State for each field in the Project model
     var name by remember { mutableStateOf("") }
-    var client by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var budget by remember { mutableStateOf("") }
-    var spent by remember { mutableStateOf("0") }
-    var status by remember { mutableStateOf("In Progress") }
+    var email by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var department by remember { mutableStateOf("Consulting") }
+    var jobtitle by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf("Male") }
+    // Security/Business Rule: Default role is always TEAM for this entry point
+    val role = com.example.luminarysolutions.ui.auth.UserRole.TEAM
     var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    var selectedLeaderIds by remember { mutableStateOf(setOf<String>()) }
 
-    val statuses = listOf("In Progress", "Completed", "On Hold")
-    var statusExpanded by remember { mutableStateOf(false) }
-    var leadersExpanded by remember { mutableStateOf(false) }
+    val departments = listOf("Consulting", "Investment", "Advisory", "Strategy", "Tech", "Operations", "Finance", "Legal")
+    
+    var deptExpanded by remember { mutableStateOf(false) }
 
-    // Launcher for picking an image from gallery
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: android.net.Uri? ->
@@ -2512,12 +2880,7 @@ fun AddProjectDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { 
-            Column {
-                Text("Create New Project", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                Text("Fill in project details and assign leadership", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-            }
-        },
+        title = { Text("Invite Team Member", fontWeight = FontWeight.Black) },
         text = {
             Column(
                 modifier = Modifier
@@ -2525,239 +2888,90 @@ fun AddProjectDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Image Upload Section
-                Text("Project Cover Image", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Surface(
-                    onClick = { imagePickerLauncher.launch("image/*") },
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFF1F5F9),
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
+                // Image Upload
+                Box(modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                    Surface(
+                        onClick = { imagePickerLauncher.launch("image/*") },
+                        shape = CircleShape,
+                        color = Color(0xFFF1F5F9),
+                        modifier = Modifier.size(80.dp),
+                        border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                    ) {
                         if (selectedImageUri != null) {
                             AsyncImage(
                                 model = selectedImageUri,
-                                contentDescription = "Selected Image",
-                                modifier = Modifier.fillMaxSize(),
+                                contentDescription = "Avatar",
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
                             )
                         } else {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.AddPhotoAlternate, "Upload", tint = Color.Gray, modifier = Modifier.size(32.dp))
-                                Text("Tap to upload project photo", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                            }
+                            Icon(Icons.Default.AddAPhoto, null, tint = Color.Gray, modifier = Modifier.padding(24.dp))
                         }
                     }
                 }
 
-                // Primary Info Section
-                Text("Primary Information", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Full Name") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email Address") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone Number") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
                 
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Project Name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    leadingIcon = { Icon(Icons.Default.BusinessCenter, null, modifier = Modifier.size(18.dp)) }
-                )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = client,
-                        onValueChange = { client = it },
-                        label = { Text("Client") },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = category,
-                        onValueChange = { category = it },
-                        label = { Text("Category") },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                // Gender Selection (Radio Buttons)
+                Column {
+                    Text("Gender", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = gender == "Male", onClick = { gender = "Male" })
+                        Text("Male", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.width(16.dp))
+                        RadioButton(selected = gender == "Female", onClick = { gender = "Female" })
+                        Text("Female", style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
 
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    shape = RoundedCornerShape(12.dp)
-                )
+                OutlinedTextField(value = jobtitle, onValueChange = { jobtitle = it }, label = { Text("Job Title") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
-                OutlinedTextField(
-                    value = location,
-                    onValueChange = { location = it },
-                    label = { Text("Location") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    leadingIcon = { Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(18.dp)) }
-                )
-
-                Divider(color = Color.LightGray.copy(alpha = 0.5f))
-
-                // Financials & Status Section
-                Text("Financials & Status", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = budget,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) budget = it },
-                        label = { Text("Budget ($)") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = spent,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) spent = it },
-                        label = { Text("Spent ($)") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-
-                Box {
-                    OutlinedTextField(
-                        value = status,
+                        value = department,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Current Status") },
+                        label = { Text("Department") },
                         modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            IconButton(onClick = { statusExpanded = true }) {
-                                Icon(Icons.Default.ArrowDropDown, null)
-                            }
-                        },
+                        trailingIcon = { IconButton(onClick = { deptExpanded = true }) { Icon(Icons.Default.ArrowDropDown, null) } },
                         shape = RoundedCornerShape(12.dp)
                     )
-                    DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
-                        statuses.forEach { s ->
-                            DropdownMenuItem(
-                                text = { Text(s) },
-                                onClick = {
-                                    status = s
-                                    statusExpanded = false
-                                }
-                            )
+                    DropdownMenu(expanded = deptExpanded, onDismissRequest = { deptExpanded = false }) {
+                        departments.forEach { dept ->
+                            DropdownMenuItem(text = { Text(dept) }, onClick = { department = dept; deptExpanded = false })
                         }
                     }
                 }
-
-                Divider(color = Color.LightGray.copy(alpha = 0.5f))
-
-                // Leadership Selection Section
-                Text("Assign Leadership", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                
-                Box {
-                    OutlinedTextField(
-                        value = if (selectedLeaderIds.isEmpty()) "No leaders assigned" else "${selectedLeaderIds.size} leaders selected",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Group Leaders") },
-                        modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            IconButton(onClick = { leadersExpanded = true }) {
-                                Icon(Icons.Default.PersonAdd, null)
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    DropdownMenu(
-                        expanded = leadersExpanded,
-                        onDismissRequest = { leadersExpanded = false },
-                        modifier = Modifier.fillMaxWidth(0.8f).heightIn(max = 300.dp)
-                    ) {
-                        if (teamMembers.isEmpty()) {
-                            DropdownMenuItem(text = { Text("No team members found") }, onClick = {})
-                        }
-                        teamMembers.forEach { member ->
-                            val isSelected = selectedLeaderIds.contains(member.id)
-                            DropdownMenuItem(
-                                text = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Checkbox(checked = isSelected, onCheckedChange = null)
-                                        Spacer(Modifier.width(8.dp))
-                                        Column {
-                                            Text(member.name, style = MaterialTheme.typography.bodyMedium)
-                                            Text(member.role.name, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                        }
-                                    }
-                                },
-                                onClick = {
-                                    selectedLeaderIds = if (isSelected) {
-                                        selectedLeaderIds - member.id
-                                    } else {
-                                        selectedLeaderIds + member.id
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-                
-                // Display selected leaders as Chips
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    selectedLeaderIds.forEach { id ->
-                        val name = teamMembers.find { it.id == id }?.name ?: "Unknown"
-                        AssistChip(
-                            onClick = { selectedLeaderIds = selectedLeaderIds - id },
-                            label = { Text(name, fontSize = 10.sp) },
-                            trailingIcon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(14.dp)) },
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                    }
-                }
+                // App Role selection removed as per security/business requirements
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    if (name.isNotBlank()) {
-                        val budgetInt = budget.toIntOrNull() ?: 0
-                        val spentInt = spent.toIntOrNull() ?: 0
-                        val progressCalc = if (budgetInt > 0) (spentInt.toFloat() / budgetInt.toFloat()).coerceIn(0f, 1f) else 0f
-                        
-                        onConfirm(
-                            Project(
-                                name = name,
-                                status = status,
-                                budget = budgetInt,
-                                spent = spentInt,
-                                progress = progressCalc,
-                                lastUpdated = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date()),
-                                imageUrl = selectedImageUri?.toString(), // Use the URI string
-                                description = description,
-                                location = location,
-                                startDate = System.currentTimeMillis(),
-                                volunteers = emptyList(), // Volunteers added after creation
-                                groupLeaderId = selectedLeaderIds.firstOrNull() ?: "",
-                                groupLeaderIds = selectedLeaderIds.toList(),
-                                client = client,
-                                category = category
-                            )
-                        )
+                    if (name.isNotBlank() && email.isNotBlank()) {
+                        onConfirm(com.example.luminarysolutions.data.models.Team(
+                            name = name,
+                            email = email,
+                            phone = phone,
+                            department = department,
+                            jobtitle = jobtitle,
+                            gender = gender,
+                            role = role, // Automatically set to UserRole.TEAM
+                            imageUrl = selectedImageUri?.toString(),
+                            enabled = true
+                        ))
                     }
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Create Project", fontWeight = FontWeight.Bold)
+                Text("Send Invitation", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-            ) {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
                 Text("Cancel", color = Color.Gray)
             }
         }
@@ -2765,27 +2979,24 @@ fun AddProjectDialog(
 }
 
 @Composable
-fun EditProjectDialog(
-    project: Project,
-    teamMembers: List<com.example.luminarysolutions.data.models.User>,
+fun EditTeamMemberDialog(
+    team: com.example.luminarysolutions.data.models.Team,
     onDismiss: () -> Unit,
-    onConfirm: (Project) -> Unit
+    onConfirm: (com.example.luminarysolutions.data.models.Team) -> Unit
 ) {
-    // Initialize state with existing project data
-    var name by remember { mutableStateOf(project.name) }
-    var client by remember { mutableStateOf(project.client) }
-    var category by remember { mutableStateOf(project.category) }
-    var description by remember { mutableStateOf(project.description) }
-    var location by remember { mutableStateOf(project.location) }
-    var budget by remember { mutableStateOf(project.budget.toString()) }
-    var spent by remember { mutableStateOf(project.spent.toString()) }
-    var status by remember { mutableStateOf(project.status) }
+    var name by remember { mutableStateOf(team.name) }
+    var email by remember { mutableStateOf(team.email) }
+    var phone by remember { mutableStateOf(team.phone) }
+    var department by remember { mutableStateOf(team.department) }
+    var jobtitle by remember { mutableStateOf(team.jobtitle) }
+    var gender by remember { mutableStateOf(team.gender.ifBlank { "Male" }) }
+    // Role is preserved from the existing team member, selection removed from UI
+    var enabled by remember { mutableStateOf(team.enabled) }
     var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    var selectedLeaderIds by remember { mutableStateOf(project.groupLeaderIds.toSet()) }
 
-    val statuses = listOf("In Progress", "Completed", "On Hold")
-    var statusExpanded by remember { mutableStateOf(false) }
-    var leadersExpanded by remember { mutableStateOf(false) }
+    val departments = listOf("Consulting", "Investment", "Advisory", "Strategy", "Tech", "Operations", "Finance", "Legal")
+    
+    var deptExpanded by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -2795,12 +3006,7 @@ fun EditProjectDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { 
-            Column {
-                Text("Edit Project", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                Text("Update project details", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-            }
-        },
+        title = { Text("Edit Team Member", fontWeight = FontWeight.Black) },
         text = {
             Column(
                 modifier = Modifier
@@ -2808,194 +3014,88 @@ fun EditProjectDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Image Upload Section
-                Text("Project Cover Image", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Surface(
-                    onClick = { imagePickerLauncher.launch("image/*") },
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFF1F5F9),
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                    Surface(
+                        onClick = { imagePickerLauncher.launch("image/*") },
+                        shape = CircleShape,
+                        color = Color(0xFFF1F5F9),
+                        modifier = Modifier.size(80.dp),
+                        border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                    ) {
                         if (selectedImageUri != null) {
                             AsyncImage(
                                 model = selectedImageUri,
-                                contentDescription = "Selected Image",
-                                modifier = Modifier.fillMaxSize(),
+                                contentDescription = "Avatar",
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
                             )
-                        } else if (!project.imageUrl.isNullOrBlank()) {
+                        } else if (!team.imageUrl.isNullOrBlank()) {
                             AsyncImage(
-                                model = project.imageUrl,
-                                contentDescription = "Current Image",
-                                modifier = Modifier.fillMaxSize(),
+                                model = team.imageUrl,
+                                contentDescription = "Avatar",
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop
                             )
                         } else {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.AddPhotoAlternate, "Upload", tint = Color.Gray, modifier = Modifier.size(32.dp))
-                                Text("Tap to change photo", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                            }
+                            Icon(Icons.Default.Person, null, tint = Color.LightGray, modifier = Modifier.padding(24.dp))
                         }
                     }
                 }
 
-                // Primary Info Section
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Project Name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = client,
-                        onValueChange = { client = it },
-                        label = { Text("Client") },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = category,
-                        onValueChange = { category = it },
-                        label = { Text("Category") },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Full Name") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email Address") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone Number") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+                
+                // Gender Selection (Radio Buttons)
+                Column {
+                    Text("Gender", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = gender == "Male", onClick = { gender = "Male" })
+                        Text("Male", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.width(16.dp))
+                        RadioButton(selected = gender == "Female", onClick = { gender = "Female" })
+                        Text("Female", style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
 
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    shape = RoundedCornerShape(12.dp)
-                )
+                OutlinedTextField(value = jobtitle, onValueChange = { jobtitle = it }, label = { Text("Job Title") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
 
-                OutlinedTextField(
-                    value = location,
-                    onValueChange = { location = it },
-                    label = { Text("Location") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = budget,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) budget = it },
-                        label = { Text("Budget ($)") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = spent,
-                        onValueChange = { if (it.all { char -> char.isDigit() }) spent = it },
-                        label = { Text("Spent ($)") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-
-                Box {
-                    OutlinedTextField(
-                        value = status,
+                        value = department,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Current Status") },
+                        label = { Text("Department") },
                         modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            IconButton(onClick = { statusExpanded = true }) {
-                                Icon(Icons.Default.ArrowDropDown, null)
-                            }
-                        },
+                        trailingIcon = { IconButton(onClick = { deptExpanded = true }) { Icon(Icons.Default.ArrowDropDown, null) } },
                         shape = RoundedCornerShape(12.dp)
                     )
-                    DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
-                        statuses.forEach { s ->
-                            DropdownMenuItem(
-                                text = { Text(s) },
-                                onClick = {
-                                    status = s
-                                    statusExpanded = false
-                                }
-                            )
+                    DropdownMenu(expanded = deptExpanded, onDismissRequest = { deptExpanded = false }) {
+                        departments.forEach { dept ->
+                            DropdownMenuItem(text = { Text(dept) }, onClick = { department = dept; deptExpanded = false })
                         }
                     }
                 }
 
-                // Leadership Selection
-                Box {
-                    OutlinedTextField(
-                        value = if (selectedLeaderIds.isEmpty()) "No leaders assigned" else "${selectedLeaderIds.size} leaders selected",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Group Leaders") },
-                        modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            IconButton(onClick = { leadersExpanded = true }) {
-                                Icon(Icons.Default.PersonAdd, null)
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    DropdownMenu(
-                        expanded = leadersExpanded,
-                        onDismissRequest = { leadersExpanded = false },
-                        modifier = Modifier.fillMaxWidth(0.8f).heightIn(max = 300.dp)
-                    ) {
-                        teamMembers.forEach { member ->
-                            val isSelected = selectedLeaderIds.contains(member.id)
-                            DropdownMenuItem(
-                                text = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Checkbox(checked = isSelected, onCheckedChange = null)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(member.name)
-                                    }
-                                },
-                                onClick = {
-                                    selectedLeaderIds = if (isSelected) {
-                                        selectedLeaderIds - member.id
-                                    } else {
-                                        selectedLeaderIds + member.id
-                                    }
-                                }
-                            )
-                        }
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("Account Enabled", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = enabled, onCheckedChange = { enabled = it })
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val budgetInt = budget.toIntOrNull() ?: 0
-                    val spentInt = spent.toIntOrNull() ?: 0
-                    val progressCalc = if (budgetInt > 0) (spentInt.toFloat() / budgetInt.toFloat()).coerceIn(0f, 1f) else 0f
-                    
-                    onConfirm(
-                        project.copy(
-                            name = name,
-                            status = status,
-                            budget = budgetInt,
-                            spent = spentInt,
-                            progress = progressCalc,
-                            imageUrl = selectedImageUri?.toString() ?: project.imageUrl,
-                            description = description,
-                            location = location,
-                            client = client,
-                            category = category,
-                            groupLeaderIds = selectedLeaderIds.toList(),
-                            groupLeaderId = selectedLeaderIds.firstOrNull() ?: ""
-                        )
-                    )
+                    onConfirm(team.copy(
+                        name = name,
+                        email = email,
+                        phone = phone,
+                        department = department,
+                        jobtitle = jobtitle,
+                        gender = gender,
+                        imageUrl = selectedImageUri?.toString() ?: team.imageUrl,
+                        enabled = enabled
+                    ))
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(12.dp)
@@ -3010,7 +3110,536 @@ fun EditProjectDialog(
         }
     )
 }
+
+@Composable
+fun AddFreelanceDialog(
+    teamMembers: List<com.example.luminarysolutions.data.models.Team>,
+    onDismiss: () -> Unit,
+    onConfirm: (Freelance) -> Unit
+) {
+    // State for each field in the Freelance model
+    var name by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Consulting") }
+    var description by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Pending") }
+    var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedTeamIds by remember { mutableStateOf(setOf<String>()) }
+
+    val statuses = listOf("Pending", "Active", "Completed")
+    val categories = listOf("Consulting", "Investment", "Advisory", "Strategy", "Tech", "Other")
+    var statusExpanded by remember { mutableStateOf(false) }
+    var categoryExpanded by remember { mutableStateOf(false) }
+    var teamExpanded by remember { mutableStateOf(false) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        selectedImageUri = uri
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { 
+            Column {
+                Text("Create New Freelance Service", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text("Fill in service details and assign team", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Image Upload Section
+                Text("Service Cover Image", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Surface(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF1F5F9),
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (selectedImageUri != null) {
+                            AsyncImage(
+                                model = selectedImageUri,
+                                contentDescription = "Selected Image",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.AddPhotoAlternate, "Upload", tint = Color.Gray, modifier = Modifier.size(32.dp))
+                                Text("Tap to upload photo", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            }
+                        }
+                    }
+                }
+
+                // Primary Info Section
+                Text("Primary Information", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Service Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { categoryExpanded = true }) {
+                                Icon(Icons.Default.ArrowDropDown, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                        categories.forEach { cat ->
+                            DropdownMenuItem(
+                                text = { Text(cat) },
+                                onClick = {
+                                    category = cat
+                                    categoryExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Box {
+                    OutlinedTextField(
+                        value = status,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Current Status") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { statusExpanded = true }) {
+                                Icon(Icons.Default.ArrowDropDown, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
+                        statuses.forEach { s ->
+                            DropdownMenuItem(
+                                text = { Text(s) },
+                                onClick = {
+                                    status = s
+                                    statusExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Divider(color = Color.LightGray.copy(alpha = 0.5f))
+
+                // Team Assignment
+                Text("Assign Team Members", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                
+                Box {
+                    OutlinedTextField(
+                        value = if (selectedTeamIds.isEmpty()) "No members assigned" else "${selectedTeamIds.size} members selected",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Team") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { teamExpanded = true }) {
+                                Icon(Icons.Default.PersonAdd, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(
+                        expanded = teamExpanded,
+                        onDismissRequest = { teamExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.8f).heightIn(max = 300.dp)
+                    ) {
+                        teamMembers.forEach { member ->
+                            val isSelected = selectedTeamIds.contains(member.id)
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(checked = isSelected, onCheckedChange = null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Column {
+                                            Text(member.name, style = MaterialTheme.typography.bodyMedium)
+                                            Text(member.role.name, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    selectedTeamIds = if (isSelected) {
+                                        selectedTeamIds - member.id
+                                    } else {
+                                        selectedTeamIds + member.id
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        onConfirm(
+                            Freelance(
+                                name = name,
+                                status = status,
+                                imageUrl = selectedImageUri?.toString(),
+                                description = description,
+                                category = category,
+                                teamIds = selectedTeamIds.toList(),
+                                clientIds = emptyList() // Start with no applicants
+                            )
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Create Freelance Service", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel", color = Color.Gray)
+            }
+        }
+    )
+}
+
+@Composable
+fun EditFreelanceDialog(
+    freelance: Freelance,
+    teamMembers: List<com.example.luminarysolutions.data.models.Team>,
+    onDismiss: () -> Unit,
+    onConfirm: (Freelance) -> Unit
+) {
+    var name by remember { mutableStateOf(freelance.name) }
+    var category by remember { mutableStateOf(freelance.category) }
+    var description by remember { mutableStateOf(freelance.description) }
+    var status by remember { mutableStateOf(freelance.status) }
+    var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedTeamIds by remember { mutableStateOf(freelance.teamIds.toSet()) }
+
+    val statuses = listOf("Pending", "Active", "Completed")
+    val categories = listOf("Consulting", "Investment", "Advisory", "Strategy", "Tech", "Other")
+    var statusExpanded by remember { mutableStateOf(false) }
+    var categoryExpanded by remember { mutableStateOf(false) }
+    var teamExpanded by remember { mutableStateOf(false) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        selectedImageUri = uri
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Freelance Service") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { categoryExpanded = true }) {
+                                Icon(Icons.Default.ArrowDropDown, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                        categories.forEach { cat ->
+                            DropdownMenuItem(
+                                text = { Text(cat) },
+                                onClick = {
+                                    category = cat
+                                    categoryExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Box {
+                    OutlinedTextField(
+                        value = status,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Status") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { statusExpanded = true }) {
+                                Icon(Icons.Default.ArrowDropDown, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
+                        statuses.forEach { s ->
+                            DropdownMenuItem(
+                                text = { Text(s) },
+                                onClick = {
+                                    status = s
+                                    statusExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                Box {
+                    OutlinedTextField(
+                        value = if (selectedTeamIds.isEmpty()) "No members assigned" else "${selectedTeamIds.size} members selected",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Assigned Team") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { teamExpanded = true }) {
+                                Icon(Icons.Default.PersonAdd, null)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    DropdownMenu(
+                        expanded = teamExpanded,
+                        onDismissRequest = { teamExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.8f).heightIn(max = 300.dp)
+                    ) {
+                        teamMembers.forEach { member ->
+                            val isSelected = selectedTeamIds.contains(member.id)
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(checked = isSelected, onCheckedChange = null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Column {
+                                            Text(member.name, style = MaterialTheme.typography.bodyMedium)
+                                            Text(member.role.name, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    selectedTeamIds = if (isSelected) {
+                                        selectedTeamIds - member.id
+                                    } else {
+                                        selectedTeamIds + member.id
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm(
+                        freelance.copy(
+                            name = name,
+                            category = category,
+                            description = description,
+                            status = status,
+                            imageUrl = selectedImageUri?.toString() ?: freelance.imageUrl,
+                            teamIds = selectedTeamIds.toList()
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Save Changes")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel", color = Color.Gray)
+            }
+        }
+    )
+}
+/**
+ * Modern search input field with improved visibility and interaction.
+ * Follows industry best practices for accessibility and clean UI.
+ */
+@Composable
+fun SearchTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = { 
+            Text(
+                text = placeholder, 
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray.copy(alpha = 0.8f)
+            ) 
+        },
+        leadingIcon = { 
+            Icon(
+                imageVector = Icons.Default.Search, 
+                contentDescription = "Search Icon", 
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            ) 
+        },
+        trailingIcon = {
+            if (value.isNotEmpty()) {
+                IconButton(onClick = { onValueChange("") }) {
+                    Icon(
+                        imageVector = Icons.Default.Close, 
+                        contentDescription = "Clear Search", 
+                        tint = Color.Gray,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        },
+        modifier = modifier.height(52.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color(0xFFF8F9FA),
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = Color.LightGray.copy(alpha = 0.4f),
+            cursorColor = MaterialTheme.colorScheme.primary,
+            focusedTextColor = Color.Black,
+            unfocusedTextColor = Color.Black
+        ),
+        textStyle = MaterialTheme.typography.bodyMedium,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+    )
+}
+
+@Composable
+fun ViewAllLeadershipDialog(
+    teams: List<com.example.luminarysolutions.data.models.Team>,
+    onDismiss: () -> Unit,
+    onEdit: (com.example.luminarysolutions.data.models.Team) -> Unit,
+    onDelete: (com.example.luminarysolutions.data.models.Team) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Leadership Team", fontWeight = FontWeight.Black) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                teams.forEach { member ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(shape = CircleShape, color = Color(0xFFF1F5F9), modifier = Modifier.size(40.dp)) {
+                                if (!member.imageUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = member.imageUrl,
+                                        contentDescription = member.name,
+                                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Person, null, tint = Color.LightGray, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(member.name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Text(member.jobtitle, style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 8.sp)
+                            }
+                            Row {
+                                IconButton(onClick = { onEdit(member); onDismiss() }) {
+                                    Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp), tint = Color.Gray)
+                                }
+                                IconButton(onClick = { onDelete(member); onDismiss() }) {
+                                    Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp), tint = Color.Red.copy(alpha = 0.7f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
 @Preview(showBackground = true)
+
 @Composable
 fun LuminaryDetailsScreenPreview() {
     LuminarySolutionsTheme {
@@ -3023,6 +3652,16 @@ fun LuminaryDetailsScreenPreview() {
             onAddProject = {},
             onDeleteProject = {},
             onUpdateProject = {},
+            onSearchQueryChange = {},
+            onStatusFilterChange = {},
+            onSortOrderChange = {},
+            onAddTeamMember = {},
+            onDeleteTeamMember = {},
+            onUpdateTeamMember = {},
+            onTeamSearchQueryChange = {},
+            onTeamStatusFilterChange = {},
+            onTeamSortOrderChange = {},
+            onTeamPageChange = {},
             onBackClick = {},
             onProjectClick = {}
         )
