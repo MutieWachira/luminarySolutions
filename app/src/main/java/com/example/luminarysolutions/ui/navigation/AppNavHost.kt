@@ -98,6 +98,14 @@ fun AppNavHost(
             ProjectDetailsScreen(navController = navController, projectId = projectId)
         }
 
+        composable(
+            route = Screen.FreelanceDetails.route,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
+            FreelanceDetailsScreen(navController = navController, projectId = projectId)
+        }
+
         //  Partner Details
         composable(
             route = Screen.PartnerDetails.route,

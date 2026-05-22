@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.luminarysolutions.data.models.Approval
 import com.example.luminarysolutions.data.models.Donor
 import com.example.luminarysolutions.data.models.Expense
+import com.example.luminarysolutions.data.models.Freelance
 import com.example.luminarysolutions.data.models.Partner
 import com.example.luminarysolutions.data.models.Project
 import com.example.luminarysolutions.data.models.User
@@ -57,6 +58,11 @@ object FirestoreService {
     // Path: lumisphere (collection) -> approvals (document) -> items (sub-collection)
     private fun getApprovalsCollection() = db.collection("lumisphere")
         .document("approvals")
+        .collection("items")
+
+    // Path: luminary (collection) -> teams (document) -> items (sub-collection)
+    private fun getTeamsCollection() = db.collection("luminary")
+        .document("teams")
         .collection("items")
 
 
@@ -179,6 +185,14 @@ object FirestoreService {
             )
         } ?: emptyList()
 
+        val startDateRaw = doc.get("startDate")
+        val startDate = when (startDateRaw) {
+            is Timestamp -> startDateRaw.toDate().time
+            is Long -> startDateRaw
+            is Number -> startDateRaw.toLong()
+            else -> System.currentTimeMillis()
+        }
+
         return Project(
             id = doc.id,
             name = doc.getString("name") ?: "Unnamed Project",
@@ -190,12 +204,13 @@ object FirestoreService {
             imageUrl = doc.getString("imageUrl"),
             description = doc.getString("description") ?: "",
             location = doc.getString("location") ?: "",
-            startDate = doc.getLong("startDate") ?: System.currentTimeMillis(),
+            startDate = startDate,
             tasks = tasks,
             volunteers = doc.get("volunteers") as? List<String> ?: emptyList(),
             groupLeaderId = doc.getString("groupLeaderId") ?: "",
             groupLeaderIds = doc.get("groupLeaderIds") as? List<String> ?: emptyList(),
             client = doc.getString("client") ?: "",
+            clients = doc.get("clients") as? List<String> ?: emptyList(),
             category = doc.getString("category") ?: ""
         )
     }
@@ -227,6 +242,7 @@ object FirestoreService {
             "groupLeaderId" to project.groupLeaderId,
             "groupLeaderIds" to project.groupLeaderIds,
             "client" to project.client,
+            "clients" to project.clients,
             "category" to project.category
         )
         
@@ -247,20 +263,42 @@ object FirestoreService {
     }
 
     /**
-     * Luminary Specific Projects
+     * Luminary Specific Freelance Services
      */
-    fun getLuminaryProjects(): Flow<List<Project>> = callbackFlow {
+    fun getLuminaryProjects(): Flow<List<Freelance>> = callbackFlow {
         val registration = getLuminaryProjectsCollection()
-            .orderBy("lastUpdated", Query.Direction.DESCENDING)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
-                val projects = snapshot?.documents?.mapNotNull { doc -> mapToProjectUi(doc) } ?: emptyList()
+                val projects = snapshot?.documents?.mapNotNull { doc -> mapToFreelanceUi(doc) } ?: emptyList()
                 trySend(projects)
             }
         awaitClose { registration.remove() }
+    }
+
+    private fun mapToFreelanceUi(doc: DocumentSnapshot): Freelance {
+        val createdAtRaw = doc.get("createdAt")
+        val createdAt = when (createdAtRaw) {
+            is Timestamp -> createdAtRaw.toDate().time
+            is Long -> createdAtRaw
+            is Number -> createdAtRaw.toLong()
+            else -> System.currentTimeMillis()
+        }
+
+        return Freelance(
+            id = doc.id,
+            imageUrl = doc.getString("imageUrl"),
+            name = doc.getString("name") ?: "Unnamed Service",
+            description = doc.getString("description") ?: "",
+            category = doc.getString("category") ?: "",
+            status = doc.getString("status") ?: "Pending",
+            teamIds = doc.get("teamIds") as? List<String> ?: emptyList(),
+            clientIds = doc.get("clientIds") as? List<String> ?: emptyList(),
+            createdAt = createdAt
+        )
     }
 
     /**
@@ -273,41 +311,160 @@ object FirestoreService {
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
-                val users = snapshot?.documents?.mapNotNull { doc ->
-                    User(
-                        id = doc.id,
-                        name = doc.getString("name") ?: "Unnamed",
-                        email = doc.getString("email") ?: "",
-                        role = com.example.luminarysolutions.ui.auth.safeValueOf(doc.getString("role")),
-                        enabled = doc.getBoolean("enabled") ?: true
-                    )
-                } ?: emptyList()
+                val users = snapshot?.documents?.mapNotNull { doc -> mapToUser(doc) } ?: emptyList()
                 trySend(users)
             }
         awaitClose { registration.remove() }
     }
 
-    fun addLuminaryProject(project: Project, onComplete: (Boolean) -> Unit) {
-        val projectData = hashMapOf(
-            "name" to project.name,
-            "status" to project.status,
-            "budget" to project.budget,
-            "spent" to project.spent,
-            "progress" to project.progress,
-            "lastUpdated" to FieldValue.serverTimestamp(),
-            "imageUrl" to project.imageUrl,
-            "description" to project.description,
-            "location" to project.location,
-            "startDate" to project.startDate,
-            "tasks" to emptyList<Map<String, Any>>(),
-            "volunteers" to emptyList<String>(),
-            "groupLeaderId" to project.groupLeaderId,
-            "groupLeaderIds" to project.groupLeaderIds,
-            "client" to project.client,
-            "category" to project.category
+    private fun mapToUser(doc: DocumentSnapshot): User {
+        return User(
+            id = doc.id,
+            name = doc.getString("name") ?: "Unnamed",
+            email = doc.getString("email") ?: "",
+            role = com.example.luminarysolutions.ui.auth.safeValueOf(doc.getString("role")),
+            enabled = doc.getBoolean("enabled") ?: true
+        )
+    }
+
+    /**
+     * Team / Luminary Teams Section
+     */
+    fun getTeams(): Flow<List<com.example.luminarysolutions.data.models.Team>> = callbackFlow {
+        val registration = getTeamsCollection()
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val teams = snapshot?.documents?.mapNotNull { doc -> mapToTeam(doc) } ?: emptyList()
+                trySend(teams)
+            }
+        awaitClose { registration.remove() }
+    }
+
+    /**
+     * Culture Section
+     */
+    fun getTeamCulture(): Flow<com.example.luminarysolutions.data.models.TeamCulture> = callbackFlow {
+        val registration = db.collection("luminary").document("culture")
+            .addSnapshotListener { doc, _ ->
+                if (doc != null && doc.exists()) {
+                    trySend(com.example.luminarysolutions.data.models.TeamCulture(
+                        diversityRate = doc.getString("diversityRate") ?: "38%",
+                        satisfactionScore = doc.getString("satisfactionScore") ?: "4.6/5",
+                        trainingPrograms = doc.getLong("trainingPrograms")?.toInt() ?: 24
+                    ))
+                } else {
+                    trySend(com.example.luminarysolutions.data.models.TeamCulture())
+                }
+            }
+        awaitClose { registration.remove() }
+    }
+
+    private fun mapToTeam(doc: DocumentSnapshot): com.example.luminarysolutions.data.models.Team {
+        return com.example.luminarysolutions.data.models.Team(
+            id = doc.id,
+            imageUrl = doc.getString("imageUrl"),
+            name = doc.getString("name") ?: "Unnamed",
+            email = doc.getString("email") ?: "",
+            phone = doc.getString("phone") ?: "",
+            department = doc.getString("department") ?: "",
+            jobtitle = doc.getString("jobtitle") ?: "",
+            gender = doc.getString("gender") ?: "Male",
+            role = com.example.luminarysolutions.ui.auth.safeValueOf(doc.getString("role")),
+            enabled = doc.getBoolean("enabled") ?: true
+        )
+    }
+
+    fun addTeamMember(team: com.example.luminarysolutions.data.models.Team, onComplete: (Boolean) -> Unit) {
+        val teamData = hashMapOf(
+            "name" to team.name,
+            "email" to team.email,
+            "phone" to team.phone,
+            "department" to team.department,
+            "jobtitle" to team.jobtitle,
+            "gender" to team.gender,
+            "role" to team.role.name,
+            "enabled" to team.enabled,
+            "imageUrl" to team.imageUrl,
+            "createdAt" to FieldValue.serverTimestamp()
         )
 
-        getLuminaryProjectsCollection().add(projectData)
+        getTeamsCollection().add(teamData)
+            .addOnSuccessListener {
+                onComplete(true)
+            }
+            .addOnFailureListener { onComplete(false) }
+    }
+
+    fun updateTeamMember(team: com.example.luminarysolutions.data.models.Team, onComplete: (Boolean) -> Unit) {
+        if (team.id.isEmpty()) {
+            onComplete(false)
+            return
+        }
+
+        val teamData = hashMapOf(
+            "name" to team.name,
+            "email" to team.email,
+            "phone" to team.phone,
+            "department" to team.department,
+            "jobtitle" to team.jobtitle,
+            "gender" to team.gender,
+            "role" to team.role.name,
+            "enabled" to team.enabled,
+            "imageUrl" to team.imageUrl
+        )
+
+        getTeamsCollection().document(team.id).update(teamData as Map<String, Any>)
+            .addOnSuccessListener { onComplete(true) }
+            .addOnFailureListener { onComplete(false) }
+    }
+
+    fun deleteTeamMember(teamId: String, onComplete: (Boolean) -> Unit) {
+        getTeamsCollection().document(teamId).delete()
+            .addOnSuccessListener { onComplete(true) }
+            .addOnFailureListener { onComplete(false) }
+    }
+
+    /**
+     * Fetches multiple users by their IDs.
+     */
+    fun getUsersByIds(ids: List<String>): Flow<List<User>> = callbackFlow {
+        if (ids.isEmpty()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        // Firestore 'in' query supports up to 10-30 items depending on version.
+        // For larger lists, we'd need to chunk.
+        val registration = db.collection("users")
+            .whereIn(com.google.firebase.firestore.FieldPath.documentId(), ids)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val users = snapshot?.documents?.mapNotNull { doc -> mapToUser(doc) } ?: emptyList()
+                trySend(users)
+            }
+        awaitClose { registration.remove() }
+    }
+
+    fun addLuminaryProject(freelance: Freelance, onComplete: (Boolean) -> Unit) {
+        val freelanceData = hashMapOf(
+            "name" to freelance.name,
+            "status" to freelance.status,
+            "imageUrl" to freelance.imageUrl,
+            "description" to freelance.description,
+            "category" to freelance.category,
+            "teamIds" to freelance.teamIds,
+            "clientIds" to freelance.clientIds,
+            "createdAt" to FieldValue.serverTimestamp()
+        )
+
+        getLuminaryProjectsCollection().add(freelanceData)
             .addOnSuccessListener {
                 val statsRef = db.collection("luminary").document("projects")
                 statsRef.update("count", FieldValue.increment(1))
@@ -334,39 +491,33 @@ object FirestoreService {
     }
 
     /**
-     * Updates an existing project in the luminary collection.
+     * Updates an existing freelance service in the luminary collection.
      */
-    fun updateLuminaryProject(project: Project, onComplete: (Boolean) -> Unit) {
-        if (project.id.isEmpty()) {
+    fun updateLuminaryProject(freelance: Freelance, onComplete: (Boolean) -> Unit) {
+        if (freelance.id.isEmpty()) {
             onComplete(false)
             return
         }
 
-        val projectData = hashMapOf(
-            "name" to project.name,
-            "status" to project.status,
-            "budget" to project.budget,
-            "spent" to project.spent,
-            "progress" to project.progress,
-            "lastUpdated" to FieldValue.serverTimestamp(),
-            "imageUrl" to project.imageUrl,
-            "description" to project.description,
-            "location" to project.location,
-            "client" to project.client,
-            "category" to project.category,
-            "groupLeaderId" to project.groupLeaderId,
-            "groupLeaderIds" to project.groupLeaderIds
+        val freelanceData = hashMapOf(
+            "name" to freelance.name,
+            "status" to freelance.status,
+            "imageUrl" to freelance.imageUrl,
+            "description" to freelance.description,
+            "category" to freelance.category,
+            "teamIds" to freelance.teamIds,
+            "clientIds" to freelance.clientIds
         )
 
-        getLuminaryProjectsCollection().document(project.id).update(projectData as Map<String, Any>)
+        getLuminaryProjectsCollection().document(freelance.id).update(freelanceData as Map<String, Any>)
             .addOnSuccessListener { onComplete(true) }
             .addOnFailureListener { onComplete(false) }
     }
 
     /**
-     * Fetches a single luminary project by ID.
+     * Fetches a single luminary freelance by ID.
      */
-    fun getLuminaryProjectById(projectId: String): Flow<Project?> = callbackFlow {
+    fun getLuminaryProjectById(projectId: String): Flow<Freelance?> = callbackFlow {
         val registration = getLuminaryProjectsCollection().document(projectId)
             .addSnapshotListener { doc, error ->
                 if (error != null) {
@@ -374,7 +525,7 @@ object FirestoreService {
                     return@addSnapshotListener
                 }
                 if (doc != null && doc.exists()) {
-                    trySend(mapToProjectUi(doc))
+                    trySend(mapToFreelanceUi(doc))
                 } else {
                     trySend(null)
                 }

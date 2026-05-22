@@ -24,5 +24,6 @@ data class Project(
     val groupLeaderId: String = "", // Single leader
     val groupLeaderIds: List<String> = emptyList(), // Multiple leaders support
     val client: String = "",
+    val clients: List<String> = emptyList(), // List of client names or IDs
     val category: String = ""
 )
