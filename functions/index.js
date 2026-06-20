@@ -354,6 +354,50 @@ exports.onVolunteerStatusChange = onDocumentUpdated({
 });
 
 /**
+ * TRIGGER: Volunteer Deletion.
+ * Cleanup Auth account, user profile, and send confirmation email.
+ */
+exports.onVolunteerDeleted = onDocumentDeleted({
+    document: "lumisphere/volunteers/items/{volunteerId}",
+    secrets: [smtpPassword]
+}, async (event) => {
+    const oldValue = event.data?.data();
+    if (!oldValue) return;
+
+    const volunteerId = event.params.volunteerId;
+    const { email, name } = oldValue;
+
+    try {
+        console.log(`Deleting Auth user and user profile for volunteer ${volunteerId}...`);
+
+        // 1. Delete from Auth
+        // Note: The volunteer document ID is usually the Auth UID in this system
+        try {
+            await admin.auth().deleteUser(volunteerId);
+            console.log(`Auth account for ${volunteerId} deleted.`);
+        } catch (authError) {
+            if (authError.code === 'auth/user-not-found') {
+                console.log(`Auth account for ${volunteerId} not found, already deleted.`);
+            } else {
+                console.error(`Error deleting Auth user ${volunteerId}:`, authError);
+            }
+        }
+
+        // 2. Delete User Profile from 'users' collection
+        await admin.firestore().collection("users").doc(volunteerId).delete();
+        console.log(`User profile for ${volunteerId} deleted.`);
+
+        // 3. Send Deletion Email
+        if (email) {
+            await sendStatusEmail(email, name, "AccountDeleted");
+        }
+
+    } catch (error) {
+        console.error(`Error in onVolunteerDeleted for ${volunteerId}:`, error);
+    }
+});
+
+/**
  * CALLABLE FUNCTIONS (Manual tools)
  */
 
