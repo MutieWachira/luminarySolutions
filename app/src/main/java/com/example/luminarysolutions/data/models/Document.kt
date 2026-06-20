@@ -7,5 +7,7 @@ data class Document(
     val category: String = "",
     val uploader: String = "",
     val date: String = "",
-    val size: String = ""
+    val size: String = "",
+    val fileUrl: String? = null,
+    val timestamp: Long = System.currentTimeMillis()
 )

@@ -1,38 +1,28 @@
 package com.example.luminarysolutions.ui.ceo
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.luminarysolutions.data.firebase.DashboardStats
-import com.example.luminarysolutions.data.firebase.lumOverviewDashboardStats
-import com.example.luminarysolutions.data.models.Freelance
+import com.example.luminarysolutions.data.firebase.*
+import com.example.luminarysolutions.data.models.*
 import com.example.luminarysolutions.data.repository.DashboardRepository
-import com.example.luminarysolutions.data.models.Project
-import com.example.luminarysolutions.data.models.Approval
-import com.example.luminarysolutions.data.models.Document
-import android.net.Uri
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
 data class CEODashboardUiState(
-    val stats: DashboardStats = DashboardStats(),
+    val generalStats: DashboardStats = DashboardStats(),
     val lumStats: lumOverviewDashboardStats = lumOverviewDashboardStats(),
-    val initiatives: List<Project> = emptyList(),
-    val luminaryProjects: List<Freelance> = emptyList(),
-    val teamMembers: List<com.example.luminarysolutions.data.models.User> = emptyList(),
-    val teams: List<com.example.luminarysolutions.data.models.Team> = emptyList(),
-    val culture: com.example.luminarysolutions.data.models.TeamCulture = com.example.luminarysolutions.data.models.TeamCulture(),
-    val approvals: List<Approval> = emptyList(),
-    val documents: List<Document> = emptyList(),
+    val lumiSphereStats: lumiSphereOverviewDashboardStats = lumiSphereOverviewDashboardStats(),
+    val recentInitiatives: List<Project> = emptyList(),
+    val recentApprovals: List<Approval> = emptyList(),
+    val recentDocuments: List<Document> = emptyList(),
     val isLoading: Boolean = true,
-    val isAddingProject: Boolean = false,
+    val luminaryProjects: List<Freelance> = emptyList(),
+    val teams: List<Team> = emptyList(),
+    val culture: TeamCulture = TeamCulture(),
+    val documents: List<Document> = emptyList(),
+    val initiatives: List<Project> = emptyList(),
     val searchQuery: String = "",
     val statusFilter: String = "All Status",
     val sortOrder: String = "Newest",
@@ -41,257 +31,467 @@ data class CEODashboardUiState(
     val teamSortOrder: String = "Newest",
     val teamCurrentPage: Int = 1,
     val teamTotalPages: Int = 1,
+    val docSearchQuery: String = "",
+    val docCategoryFilter: String = "All Categories",
+    val docSortOrder: String = "Newest",
+    val docCurrentPage: Int = 1,
+    val docTotalPages: Int = 1,
+    val docStats: Map<String, Int> = emptyMap(),
+    val totalDocsCount: Int = 0,
     val totalTeamsCount: Int = 0,
     val totalActiveTeamsCount: Int = 0,
-    val totalDepartmentsCount: Int = 0
-)
-
-data class LumOverviewDashboardUiState(
-    val lumstats: lumOverviewDashboardStats = lumOverviewDashboardStats(),
-    val isLoading: Boolean = true
+    val totalDepartmentsCount: Int = 0,
+    val programSearchQuery: String = "",
+    val programStatusFilter: String = "All Status",
+    val programSortOrder: String = "Newest",
+    val programCurrentPage: Int = 1,
+    val programTotalPages: Int = 1,
+    val volunteers: List<Volunteer> = emptyList(),
+    val volunteerApplications: List<Volunteer> = emptyList(),
+    val volunteerSearchQuery: String = "",
+    val events: List<Event> = emptyList(),
+    val eventSearchQuery: String = "",
+    val isSaving: Boolean = false,
+    val message: String? = null,
+    val isError: Boolean = false,
+    val totalProgramsCount: Int = 0
 )
 
 class CEODashboardViewModel : ViewModel() {
-
     private val repository = DashboardRepository()
-
-    // Real-time year selection for financial data
     private val _selectedYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
     val selectedYear: StateFlow<Int> = _selectedYear.asStateFlow()
 
-    // Search and Filter states
     private val _searchQuery = MutableStateFlow("")
     private val _statusFilter = MutableStateFlow("All Status")
     private val _sortOrder = MutableStateFlow("Newest")
-
-    // Team Search and Filter states
+    
     private val _teamSearchQuery = MutableStateFlow("")
     private val _teamStatusFilter = MutableStateFlow("All Status")
     private val _teamSortOrder = MutableStateFlow("Newest")
     private val _teamPage = MutableStateFlow(1)
+    
+    private val _docSearchQuery = MutableStateFlow("")
+    private val _docCategoryFilter = MutableStateFlow("All Categories")
+    private val _docSortOrder = MutableStateFlow("Newest")
+    private val _docPage = MutableStateFlow(1)
 
-    private val teamItemsPerPage = 6
+    private val _programSearchQuery = MutableStateFlow("")
+    private val _programStatusFilter = MutableStateFlow("All Status")
+    private val _programSortOrder = MutableStateFlow("Newest")
+    private val _programPage = MutableStateFlow(1)
+    private val _volunteerSearchQuery = MutableStateFlow("")
+    private val _eventSearchQuery = MutableStateFlow("")
+    private val _isSaving = MutableStateFlow(false)
 
-    /**
-     * Updates the selected year and triggers a fresh fetch of real-time monthly data.
-     */
-    fun updateSelectedYear(year: Int) {
-        _selectedYear.value = year
-    }
-
-    fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
-    fun updateStatusFilter(filter: String) {
-        _statusFilter.value = filter
-    }
-
-    fun updateSortOrder(order: String) {
-        _sortOrder.value = order
-    }
-
-    fun updateTeamSearchQuery(query: String) {
-        _teamSearchQuery.value = query
-        _teamPage.value = 1 // Reset to first page on search
-    }
-
-    fun updateTeamStatusFilter(filter: String) {
-        _teamStatusFilter.value = filter
-        _teamPage.value = 1 // Reset to first page on filter change
-    }
-
-    fun updateTeamSortOrder(order: String) {
-        _teamSortOrder.value = order
-        _teamPage.value = 1 // Reset to first page on sort change
-    }
-
-    fun updateTeamPage(page: Int) {
-        _teamPage.value = page
-    }
+    private val _message = MutableStateFlow<String?>(null)
+    private val _isError = MutableStateFlow(false)
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<CEODashboardUiState> = combine(
-        _selectedYear,
+        repository.getDashboardStats(),
+        _selectedYear.flatMapLatest { repository.getLumDashStats(it) },
+        _selectedYear.flatMapLatest { repository.getLumiSphereDashStats(it) },
+        repository.getProjects(), 
+        repository.getRecentApprovals(),
+        repository.getDocuments(),
+        repository.getLuminaryProjects(),
+        repository.getTeams(),
+        repository.getTeamCulture(),
+        repository.getVolunteers(),
+        repository.getVolunteerApplications(),
+        repository.getEvents(),
         _searchQuery,
         _statusFilter,
         _sortOrder,
         _teamSearchQuery,
         _teamStatusFilter,
         _teamSortOrder,
-        _teamPage
+        _teamPage,
+        _docSearchQuery,
+        _docCategoryFilter,
+        _docSortOrder,
+        _docPage,
+        _programSearchQuery,
+        _programStatusFilter,
+        _programSortOrder,
+        _programPage,
+        _volunteerSearchQuery,
+        _eventSearchQuery,
+        _isSaving,
+        _message,
+        _isError
     ) { args ->
-        val year = args[0] as Int
-        val search = args[1] as String
-        val status = args[2] as String
-        val sort = args[3] as String
-        val teamSearch = args[4] as String
-        val teamStatus = args[5] as String
-        val teamSort = args[6] as String
-        val teamPage = args[7] as Int
+        val generalStats = args[0] as DashboardStats
+        val lumStats = args[1] as lumOverviewDashboardStats
+        val lumiSphereStats = args[2] as lumiSphereOverviewDashboardStats
+        val allLumiSphereProjects = args[3] as List<Project>
+        val recentApprovals = args[4] as List<Approval>
+        val allDocs = args[5] as List<Document>
+        val luminaryProjects = args[6] as List<Freelance>
+        val allTeams = args[7] as List<Team>
+        val culture = args[8] as TeamCulture
+        val volunteers = args[9] as List<Volunteer>
+        val volunteerApps = args[10] as List<Volunteer>
+        val allEvents = args[11] as List<Event>
         
-        combine(
-            repository.getDashboardStats(),
-            repository.getLumDashStats(year),
-            repository.getOngoingInitiatives(),
-            repository.getLuminaryProjects(),
-            repository.getRecentApprovals(),
-            repository.getRecentDocuments(),
-            repository.getTeamMembers(),
-            repository.getTeams(),
-            repository.getTeamCulture()
-        ) { results: Array<Any> ->
-            val rawFreelances = results[3] as List<Freelance>
-            val rawTeams = results[7] as List<com.example.luminarysolutions.data.models.Team>
-            val culture = results[8] as com.example.luminarysolutions.data.models.TeamCulture
-            
-            // Apply filtering and sorting to luminaryProjects
-            val filteredFreelances = rawFreelances.filter { freelance ->
-                val matchesSearch = freelance.name.contains(search, ignoreCase = true) ||
-                                    freelance.description.contains(search, ignoreCase = true) ||
-                                    freelance.category.contains(search, ignoreCase = true)
-                val matchesStatus = status == "All Status" || freelance.status == status
-                matchesSearch && matchesStatus
-            }.let { list ->
-                when (sort) {
-                    "Newest" -> list.sortedByDescending { it.createdAt }
-                    "Oldest" -> list.sortedBy { it.createdAt }
-                    "Team Size" -> list.sortedByDescending { it.teamIds.size }
-                    "Applicants" -> list.sortedByDescending { it.clientIds.size }
-                    else -> list
-                }
+        val search = args[12] as String
+        val status = args[13] as String
+        val sort = args[14] as String
+        
+        val teamSearch = args[15] as String
+        val teamStatus = args[16] as String
+        val teamSort = args[17] as String
+        val teamPage = args[18] as Int
+        
+        val docSearch = args[19] as String
+        val docCategory = args[20] as String
+        val docSort = args[21] as String
+        val docPage = args[22] as Int
+
+        val progSearch = args[23] as String
+        val progStatus = args[24] as String
+        val progSort = args[25] as String
+        val progPage = args[26] as Int
+        val volunteerSearch = args[27] as String
+        val eventSearch = args[28] as String
+        val saving = args[29] as Boolean
+        val message = args[30] as? String
+        val isError = args[31] as Boolean
+
+        // Filtering Luminary Projects (Freelance)
+        val filteredLumProjects = luminaryProjects.filter { project ->
+            val matchesSearch = project.name.contains(search, true) || project.description.contains(search, true) || project.category.contains(search, true)
+            val matchesStatus = status == "All Status" || project.status == status
+            matchesSearch && matchesStatus
+        }.let { list ->
+            when (sort) {
+                "Newest" -> list.sortedByDescending { it.createdAt }
+                "Oldest" -> list.sortedBy { it.createdAt }
+                else -> list
             }
-
-            // Apply filtering and sorting to teams
-            val filteredTeams = rawTeams.filter { team ->
-                val matchesSearch = team.name.contains(teamSearch, ignoreCase = true) ||
-                                    team.email.contains(teamSearch, ignoreCase = true) ||
-                                    team.department.contains(teamSearch, ignoreCase = true) ||
-                                    team.jobtitle.contains(teamSearch, ignoreCase = true)
-                val matchesStatus = teamStatus == "All Status" || 
-                                    (teamStatus == "Active" && team.enabled) || 
-                                    (teamStatus == "Inactive" && !team.enabled)
-                matchesSearch && matchesStatus
-            }.let { list ->
-                when (teamSort) {
-                    "Newest" -> list // Firestore doesn't have createdAt yet, but we could add it
-                    "Name (A-Z)" -> list.sortedBy { it.name }
-                    "Name (Z-A)" -> list.sortedByDescending { it.name }
-                    "Department" -> list.sortedBy { it.department }
-                    else -> list
-                }
-            }
-
-            // Paginate teams
-            val totalTeams = filteredTeams.size
-            val activeTeams = filteredTeams.count { it.enabled }
-            val depts = filteredTeams.map { it.department }.distinct().size
-            
-            val totalPages = if (totalTeams == 0) 1 else kotlin.math.ceil(totalTeams.toDouble() / teamItemsPerPage).toInt()
-            val safePage = teamPage.coerceIn(1, totalPages)
-            val paginatedTeams = filteredTeams.drop((safePage - 1) * teamItemsPerPage).take(teamItemsPerPage)
-
-            CEODashboardUiState(
-                stats = results[0] as DashboardStats,
-                lumStats = results[1] as lumOverviewDashboardStats,
-                initiatives = results[2] as List<Project>,
-                luminaryProjects = filteredFreelances,
-                approvals = results[4] as List<Approval>,
-                documents = results[5] as List<Document>,
-                teamMembers = results[6] as List<com.example.luminarysolutions.data.models.User>,
-                teams = paginatedTeams,
-                culture = culture,
-                isLoading = false,
-                searchQuery = search,
-                statusFilter = status,
-                sortOrder = sort,
-                teamSearchQuery = teamSearch,
-                teamStatusFilter = teamStatus,
-                teamSortOrder = teamSort,
-                teamCurrentPage = safePage,
-                teamTotalPages = totalPages,
-                totalTeamsCount = totalTeams,
-                totalActiveTeamsCount = activeTeams,
-                totalDepartmentsCount = depts
-            )
         }
-    }.flatMapLatest { it }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = CEODashboardUiState()
-    )
 
-    fun addLuminaryProject(freelance: Freelance, onComplete: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val finalFreelance = if (freelance.imageUrl != null && freelance.imageUrl.startsWith("content://")) {
-                val uploadedUrl = repository.uploadImage(Uri.parse(freelance.imageUrl))
-                freelance.copy(imageUrl = uploadedUrl)
-            } else {
-                freelance
+        // Filtering Teams
+        val filteredTeams = allTeams.filter { member ->
+            val matchesSearch = member.name.contains(teamSearch, true) || member.email.contains(teamSearch, true) || member.department.contains(teamSearch, true)
+            val matchesStatus = teamStatus == "All Status" || (if (teamStatus == "Active") member.enabled else !member.enabled)
+            matchesSearch && matchesStatus
+        }.let { list ->
+            when (teamSort) {
+                "Name (A-Z)" -> list.sortedBy { it.name }
+                "Name (Z-A)" -> list.sortedByDescending { it.name }
+                else -> list
             }
-            repository.addLuminaryProject(finalFreelance, onComplete)
         }
-    }
 
-    fun deleteLuminaryProject(projectId: String, onComplete: (Boolean) -> Unit) {
-        repository.deleteLuminaryProject(projectId, onComplete)
-    }
-
-    fun updateLuminaryProject(freelance: Freelance, onComplete: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val finalFreelance = if (freelance.imageUrl != null && freelance.imageUrl.startsWith("content://")) {
-                val uploadedUrl = repository.uploadImage(Uri.parse(freelance.imageUrl))
-                freelance.copy(imageUrl = uploadedUrl)
-            } else {
-                freelance
+        // Filtering Documents
+        val filteredDocs = allDocs.filter { it.name.contains(docSearch, true) && (docCategory == "All Categories" || it.category == docCategory) }
+        
+        // Filtering LumiSphere Programs (Projects)
+        val filteredPrograms = allLumiSphereProjects.filter { 
+            it.name.contains(progSearch, true) || it.description.contains(progSearch, true) || it.location.contains(progSearch, true) || it.category.contains(progSearch, true)
+        }.let { list ->
+            if (progStatus == "All Status") list else list.filter { it.status == progStatus }
+        }.let { list ->
+            when (progSort) {
+                "Newest" -> list.sortedByDescending { it.startDate }
+                "Oldest" -> list.sortedBy { it.startDate }
+                "Progress" -> list.sortedByDescending { it.progress }
+                else -> list
             }
-            repository.updateLuminaryProject(finalFreelance, onComplete)
         }
-    }
+        
+        // Filtering Volunteers
+        val filteredVolunteers = volunteers.filter { it.name.contains(volunteerSearch, true) || it.email.contains(volunteerSearch, true) }
+        val filteredApps = volunteerApps.filter { it.name.contains(volunteerSearch, true) || it.email.contains(volunteerSearch, true) }
 
-    // Team Management
-    fun addTeamMember(team: com.example.luminarysolutions.data.models.Team, onComplete: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val finalTeam = if (team.imageUrl != null && team.imageUrl.startsWith("content://")) {
-                val uploadedUrl = repository.uploadImage(Uri.parse(team.imageUrl))
-                team.copy(imageUrl = uploadedUrl)
-            } else {
-                team
-            }
-            repository.addTeamMember(finalTeam, onComplete)
-        }
-    }
+        // Filtering Events
+        val filteredEvents = allEvents.filter { it.title.contains(eventSearch, true) || it.location.contains(eventSearch, true) }
 
-    fun updateTeamMember(team: com.example.luminarysolutions.data.models.Team, onComplete: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val finalTeam = if (team.imageUrl != null && team.imageUrl.startsWith("content://")) {
-                val uploadedUrl = repository.uploadImage(Uri.parse(team.imageUrl))
-                team.copy(imageUrl = uploadedUrl)
-            } else {
-                team
-            }
-            repository.updateTeamMember(finalTeam, onComplete)
-        }
-    }
+        // BUSINESS RULE: Total Programs for CEO Dashboard = Luminary (Freelance) + LumiSphere (Project)
+        // We use the stats from Firestore for consistency, or the list size if stats are 0
+        val totalLumCount = if (lumStats.totalProjects > 0) lumStats.totalProjects else luminaryProjects.size
+        val totalLumiSphereCount = if (lumiSphereStats.totalPrograms > 0) lumiSphereStats.totalPrograms else allLumiSphereProjects.size
+        val totalProgramsCount = totalLumCount + totalLumiSphereCount
 
-    fun deleteTeamMember(teamId: String, onComplete: (Boolean) -> Unit) {
-        repository.deleteTeamMember(teamId, onComplete)
-    }
-}
-
-class LumOverviewDashboardViewModel : ViewModel() {
-
-    private val repository = DashboardRepository()
-
-    val uiState: StateFlow<LumOverviewDashboardUiState> = repository.getLumDashStats(Calendar.getInstance().get(Calendar.YEAR)).map { lumstats ->
-        LumOverviewDashboardUiState(
-            lumstats = lumstats,
-            isLoading = false
+        CEODashboardUiState(
+            generalStats = generalStats,
+            lumStats = lumStats,
+            // BUSINESS RULE: LumiSphere details should ONLY show LumiSphere specific counts
+            lumiSphereStats = lumiSphereStats.copy(totalPrograms = allLumiSphereProjects.size), 
+            recentInitiatives = allLumiSphereProjects.take(5),
+            recentApprovals = recentApprovals,
+            recentDocuments = allDocs.take(3),
+            isLoading = false,
+            luminaryProjects = filteredLumProjects,
+            teams = filteredTeams,
+            culture = culture,
+            documents = filteredDocs,
+            initiatives = filteredPrograms,
+            searchQuery = search,
+            statusFilter = status,
+            sortOrder = sort,
+            teamSearchQuery = teamSearch,
+            teamStatusFilter = teamStatus,
+            teamSortOrder = teamSort,
+            teamCurrentPage = teamPage,
+            teamTotalPages = (filteredTeams.size / 10).coerceAtLeast(1),
+            docSearchQuery = docSearch,
+            docCategoryFilter = docCategory,
+            docSortOrder = docSort,
+            docCurrentPage = docPage,
+            docTotalPages = (filteredDocs.size / 10).coerceAtLeast(1),
+            docStats = allDocs.groupBy { it.category }.mapValues { it.value.size },
+            totalDocsCount = allDocs.size,
+            totalTeamsCount = allTeams.size,
+            totalActiveTeamsCount = allTeams.count { it.enabled },
+            totalDepartmentsCount = allTeams.map { it.department }.distinct().size,
+            programSearchQuery = progSearch,
+            programStatusFilter = progStatus,
+            programSortOrder = progSort,
+            programCurrentPage = progPage,
+            programTotalPages = (filteredPrograms.size / 10).coerceAtLeast(1),
+            volunteers = filteredVolunteers,
+            volunteerApplications = filteredApps,
+            volunteerSearchQuery = volunteerSearch,
+            events = filteredEvents,
+            eventSearchQuery = eventSearch,
+            isSaving = saving,
+            message = message,
+            isError = isError,
+            totalProgramsCount = totalProgramsCount 
         )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = LumOverviewDashboardUiState()
-    )
-}
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CEODashboardUiState())
 
+
+    fun updateYear(year: Int) { _selectedYear.value = year }
+    fun updateSelectedYear(year: Int) { _selectedYear.value = year }
+    fun updateSearchQuery(query: String) { _searchQuery.value = query }
+    fun updateStatusFilter(filter: String) { _statusFilter.value = filter }
+    fun updateSortOrder(order: String) { _sortOrder.value = order }
+    fun updateTeamSearchQuery(query: String) { _teamSearchQuery.value = query }
+    fun updateTeamStatusFilter(filter: String) { _teamStatusFilter.value = filter }
+    fun updateTeamSortOrder(order: String) { _teamSortOrder.value = order }
+    fun updateTeamPage(page: Int) { _teamPage.value = page }
+    fun updateDocSearchQuery(query: String) { _docSearchQuery.value = query }
+    fun updateDocCategoryFilter(filter: String) { _docCategoryFilter.value = filter }
+    fun updateDocSortOrder(order: String) { _docSortOrder.value = order }
+    fun updateDocPage(page: Int) { _docPage.value = page }
+    fun updateProgramSearchQuery(query: String) { _programSearchQuery.value = query }
+    fun updateProgramStatusFilter(filter: String) { _programStatusFilter.value = filter }
+    fun updateProgramSortOrder(order: String) { _programSortOrder.value = order }
+    fun updateProgramPage(page: Int) { _programPage.value = page }
+    fun updateVolunteerSearchQuery(query: String) { _volunteerSearchQuery.value = query }
+    fun updateEventSearchQuery(query: String) { _eventSearchQuery.value = query }
+
+    fun addLuminaryProject(freelance: Freelance, imageUri: Uri?, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            _message.value = "Uploading image and saving project..."
+            
+            val finalImageUrl = imageUri?.let { repository.uploadImage(it) } 
+            
+            if (imageUri != null && finalImageUrl == null) {
+                _message.value = "Image upload failed. Project saved without image."
+                _isError.value = true
+            }
+
+            val sanitizedImageUrl = if (finalImageUrl == null && freelance.imageUrl?.startsWith("content://") == true) {
+                null
+            } else {
+                finalImageUrl ?: freelance.imageUrl
+            }
+
+            repository.addLuminaryProject(freelance.copy(imageUrl = sanitizedImageUrl)) { success ->
+                _isSaving.value = false
+                if (success) {
+                    _message.value = if (finalImageUrl == null && imageUri != null) 
+                        "Project added (image failed)" else "Project added successfully"
+                    _isError.value = false
+                } else {
+                    _message.value = "Failed to add project to database."
+                    _isError.value = true
+                }
+                onComplete(success)
+            }
+        }
+    }
+
+    fun updateLuminaryProject(freelance: Freelance, imageUri: Uri?, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            _message.value = "Updating project..."
+            
+            val finalImageUrl = imageUri?.let { repository.uploadImage(it) }
+            
+            val sanitizedImageUrl = if (finalImageUrl == null && freelance.imageUrl?.startsWith("content://") == true) {
+                null // Don't persist temporary URIs
+            } else {
+                finalImageUrl ?: freelance.imageUrl
+            }
+
+            repository.updateLuminaryProject(freelance.copy(imageUrl = sanitizedImageUrl)) { success ->
+                _isSaving.value = false
+                if (success) {
+                    _message.value = "Project updated"
+                    _isError.value = false
+                } else {
+                    _message.value = "Update failed"
+                    _isError.value = true
+                }
+                onComplete(success)
+            }
+        }
+    }
+
+    fun deleteLuminaryProject(id: String, onComplete: (Boolean) -> Unit) {
+        repository.deleteLuminaryProject(id, onComplete)
+    }
+    
+    fun addTeamMember(team: Team, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            val result = repository.addTeamMember(team)
+            _isSaving.value = false
+            if (result.isSuccess) {
+                _message.value = "Team member added successfully. Email sent."
+                _isError.value = false
+                onComplete(true)
+            } else {
+                _message.value = "Failed to add team member."
+                _isError.value = true
+                onComplete(false)
+            }
+        }
+    }
+
+    fun clearMessage() {
+        _message.value = null
+        _isError.value = false
+    }
+
+    fun deleteTeamMember(id: String, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            val result = repository.deleteTeamMember(id)
+            _isSaving.value = false
+            if (result.isSuccess) {
+                _message.value = "Team member removed."
+                _isError.value = false
+                onComplete(true)
+            } else {
+                _message.value = "Failed to remove team member."
+                _isError.value = true
+                onComplete(false)
+            }
+        }
+    }
+
+    fun updateTeamMember(team: Team, onComplete: (Boolean) -> Unit) {
+        repository.updateTeamMember(team, onComplete)
+    }
+    
+    fun addDocument(doc: Document, uri: Uri?, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val fileUrl = uri?.let { repository.uploadFile(it, doc.name) }
+            repository.addDocument(doc.copy(fileUrl = fileUrl), onComplete)
+        }
+    }
+    fun deleteDocument(id: String, onComplete: (Boolean) -> Unit) {
+        repository.deleteDocument(id, onComplete)
+    }
+
+    fun addProgram(project: Project, imageUri: Uri?, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            _message.value = "Uploading and creating program..."
+            
+            val finalImageUrl = imageUri?.let { repository.uploadImage(it) }
+            
+            if (imageUri != null && finalImageUrl == null) {
+                _message.value = "Image upload failed. Program created without image."
+                _isError.value = true
+            }
+
+            val sanitizedImageUrl = if (finalImageUrl == null && project.imageUrl?.startsWith("content://") == true) {
+                null
+            } else {
+                finalImageUrl ?: project.imageUrl
+            }
+
+            repository.addProject(project.copy(imageUrl = sanitizedImageUrl)) { success ->
+                _isSaving.value = false
+                if (success) {
+                    _message.value = if (finalImageUrl == null && imageUri != null) 
+                        "Program added (image failed)" else "Program added successfully"
+                    _isError.value = false
+                } else {
+                    _message.value = "Failed to create program."
+                    _isError.value = true
+                }
+                onComplete(success)
+            }
+        }
+    }
+
+    fun updateProgram(project: Project, imageUri: Uri?, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            _message.value = "Updating program details..."
+            
+            val finalImageUrl = imageUri?.let { repository.uploadImage(it) }
+            
+            val sanitizedImageUrl = if (finalImageUrl == null && project.imageUrl?.startsWith("content://") == true) {
+                null
+            } else {
+                finalImageUrl ?: project.imageUrl
+            }
+
+            repository.updateProject(project.copy(imageUrl = sanitizedImageUrl)) { success ->
+                _isSaving.value = false
+                if (success) {
+                    _message.value = "Program updated successfully"
+                    _isError.value = false
+                } else {
+                    _message.value = "Failed to update program."
+                    _isError.value = true
+                }
+                onComplete(success)
+            }
+        }
+    }
+
+    fun deleteProgram(id: String, onComplete: (Boolean) -> Unit) {
+        repository.deleteProject(id, onComplete)
+    }
+
+    fun updateVolunteerStatus(volunteerId: String, status: String, onComplete: (Boolean) -> Unit) {
+        repository.updateVolunteerStatus(volunteerId, status, onComplete)
+    }
+
+    fun updateVolunteer(volunteer: Volunteer, onComplete: (Boolean) -> Unit) {
+        _isSaving.value = true
+        repository.updateVolunteer(volunteer) {
+            _isSaving.value = false
+            onComplete(it)
+        }
+    }
+
+    fun deleteVolunteer(volunteerId: String, onComplete: (Boolean) -> Unit) {
+        repository.deleteVolunteer(volunteerId, onComplete)
+    }
+
+    // Event Management
+    fun addEvent(event: Event, onComplete: (Boolean) -> Unit) {
+        repository.addEvent(event, onComplete)
+    }
+
+    fun updateEvent(event: Event, onComplete: (Boolean) -> Unit) {
+        repository.updateEvent(event, onComplete)
+    }
+
+    fun deleteEvent(eventId: String, onComplete: (Boolean) -> Unit) {
+        repository.deleteEvent(eventId, onComplete)
+    }
+}

@@ -24,11 +24,28 @@ data class lumOverviewDashboardStats(
     val monthlyStats: List<MonthlyFinancialStats> = emptyList()
 )
 
+//lumisphere overview dashboard stats
+data class lumiSphereOverviewDashboardStats(
+    val totalDonations: Int = 0,
+    val totalSpent: Int = 0,
+    val totalPrograms: Int = 0,
+    val totalBeneficiaries: Int = 0,
+    val impactScore: Float = 0f,
+    val monthlyStats: List<MonthlyImpactStats> = emptyList()
+)
+
 //Luminary overview dashboard financial overview chart
 data class MonthlyFinancialStats(
     val month: String,
     val revenue: Int,
     val expenses: Int
+)
+
+//LumiSphere overview dashboard impact overview chart
+data class MonthlyImpactStats(
+    val month: String,
+    val donations: Int,
+    val beneficiaries: Int
 )
 
 //luminary financial dashboard stats
