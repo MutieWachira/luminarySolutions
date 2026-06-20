@@ -2,6 +2,7 @@ package com.example.luminarysolutions.ui.volunteer.models
 
 data class VolunteerTaskUi(
     val id: String,
+    val projectId: String = "",
     val title: String,
     val description: String,
     val status: TaskStatus,
