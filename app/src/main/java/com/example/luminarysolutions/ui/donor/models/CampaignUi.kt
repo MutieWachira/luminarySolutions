@@ -7,5 +7,6 @@ data class CampaignUi(
     val location: String,
     val goalAmount: Int,
     val raisedAmount: Int,
-    val lastUpdate: String
+    val lastUpdate: String,
+    val imageUrl: String? = null
 )

@@ -1,3 +1,25 @@
 <resources>
-    <string name="app_name"></string>
+    <string name="app_name">Luminary Solutions</string>
+    <string name="currency_prefix">KES</string>
+    <string name="record_expense">Record Expense</string>
+    <string name="total_monthly_spend">Total Monthly Spend</string>
+    <string name="recent_transactions">Recent Transactions</string>
+    <string name="no_expenses_recorded">No expenses recorded</string>
+    <string name="add_first_expense">Add Your First Expense</string>
+    <string name="log_new_expense">Log New Expense</string>
+    <string name="category">Category</string>
+    <string name="project_account">Project / Account</string>
+    <string name="amount_kes">Amount (KES)</string>
+    <string name="save_expense">Save Expense</string>
+    <string name="save_changes">Save Changes</string>
+    <string name="edit_volunteer">Edit Volunteer Details</string>
+    <string name="remove_volunteer">Remove Volunteer</string>
+    <string name="confirm_remove_volunteer">Are you sure you want to remove \'%1$s\' from the active volunteers list?</string>
+    <string name="volunteer_name">Full Name</string>
+    <string name="email_address">Email Address</string>
+    <string name="phone_number">Phone Number</string>
+    <string name="skills_comma_separated">Skills (comma separated)</string>
+    <string name="cancel">Cancel</string>
+    <string name="error_fetch_data">Failed to fetch data. Please check your connection.</string>
+    <string name="error_record_expense">Failed to record expense. Please try again.</string>
 </resources>

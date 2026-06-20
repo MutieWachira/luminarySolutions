@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -19,9 +19,11 @@ import com.example.luminarysolutions.ui.donor.viewmodel.DonorViewModel
 @Composable
 fun DonationHistoryScreen(
     navController: NavController,
-    vm: DonorViewModel = viewModel()
+    vm: DonorViewModel = viewModel(),
 ) {
-    LaunchedEffect(Unit) { vm.load("me") }
+    val uiState by vm.uiState.collectAsState()
+
+    LaunchedEffect(Unit) { vm.loadUserStats("me") }
 
     Scaffold(
         topBar = {
@@ -29,7 +31,7 @@ fun DonationHistoryScreen(
                 title = { Text("Donation History") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -41,7 +43,7 @@ fun DonationHistoryScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            val total = vm.donations.sumOf { it.amount }
+            val total = uiState.donations.sumOf { it.amount }
             Text("Total donated: KSh $total", fontWeight = FontWeight.SemiBold)
 
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -52,13 +54,13 @@ fun DonationHistoryScreen(
                         Text("Amount", fontWeight = FontWeight.Bold)
                     }
 
-                    Divider()
+                    HorizontalDivider()
 
-                    if (vm.donations.isEmpty()) {
+                    if (uiState.donations.isEmpty()) {
                         Text("No donations yet.")
                     } else {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(vm.donations, key = { it.id }) { d ->
+                            items(uiState.donations, key = { it.id }) { d ->
                                 DonationRow(d)
                             }
                         }

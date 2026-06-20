@@ -2,10 +2,12 @@ package com.example.luminarysolutions.ui.navigation
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
+    object PublicDashboard : Screen("public_dashboard")
 
     //ceo module
     object CEODashboard : Screen("ceo_dashboard")
     object LuminaryDetails : Screen("luminary_details")
+    object LumiSphereDetails : Screen("lumisphere_details")
     object Projects : Screen("projects")
     object Finance : Screen("finance")
     object Partners : Screen("partners")
@@ -30,6 +32,12 @@ sealed class Screen(val route: String) {
         fun createRoute(projectId: String) = "project_details/$projectId"
     }
 
+    object VolunteerDetails : Screen("volunteer_details/{volunteerId}") {
+        fun createRoute(volunteerId: String) = "volunteer_details/$volunteerId"
+    }
+
+    object TeamManagement : Screen("team_management")
+
     object FreelanceDetails : Screen("freelance_details/{projectId}") {
         fun createRoute(projectId: String) = "freelance_details/$projectId"
     }
@@ -46,6 +54,10 @@ sealed class Screen(val route: String) {
 
 //volunteer
     object VolunteerDashboard : Screen("volunteer_dashboard")
+    object VolunteerExplore : Screen("volunteer_explore")
+    object VolunteerAchievements : Screen("volunteer_achievements")
+    object VolunteerProfile : Screen("volunteer_profile")
+    object VolunteerNotifications : Screen("volunteer_notifications")
     object VolunteerTasks : Screen("volunteer_tasks")
     object VolunteerTaskDetails : Screen("volunteer_task_details/{taskId}") {
         fun createRoute(taskId: String) = "volunteer_task_details/$taskId"
@@ -55,6 +67,12 @@ sealed class Screen(val route: String) {
     //donor
     object DonorDashboard : Screen("donor_dashboard")
 
+    //team
+    object TeamDashboard : Screen("team_dashboard")
+    object TeamSettings : Screen("team_settings/{settingType}") {
+        fun createRoute(settingType: String) = "team_settings/$settingType"
+    }
+
     // Donor module
     object DonorCampaigns : Screen("donor_campaigns")
     object DonorDonations : Screen("donor_donations")
@@ -62,5 +80,13 @@ sealed class Screen(val route: String) {
 
     object CampaignDetails : Screen("campaign_details/{campaignId}") {
         fun createRoute(campaignId: String) = "campaign_details/$campaignId"
+    }
+
+    object VolunteerSignUp : Screen("volunteer_signup/{projectId}") {
+        fun createRoute(projectId: String) = "volunteer_signup/$projectId"
+    }
+
+    object Donation : Screen("donation/{projectId}") {
+        fun createRoute(projectId: String) = "donation/$projectId"
     }
 }

@@ -1,6 +1,8 @@
 package com.example.luminarysolutions.ui.ceo.Dashboard
 
 import java.util.Locale
+import java.util.Date
+import java.text.SimpleDateFormat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.FactCheck
@@ -37,10 +40,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.luminarysolutions.data.firebase.DashboardStats
+import com.example.luminarysolutions.data.models.Project
+import com.example.luminarysolutions.data.models.Approval
 import com.example.luminarysolutions.ui.auth.UserRole
-import com.example.luminarysolutions.ui.ceo.AddProjectDialog
+import com.example.luminarysolutions.ui.ceo.AddEditProjectDialog
 import com.example.luminarysolutions.ui.ceo.CEODashboardUiState
 import com.example.luminarysolutions.ui.ceo.CEODashboardViewModel
 import com.example.luminarysolutions.ui.ceo.ProjectsViewModel
@@ -75,22 +81,16 @@ fun CEODashboardScreen(
         onNavigateToApprovals = { navController.navigate(Screen.Approvals.route) },
         onNavigateToExpenses = { navController.navigate(Screen.Expenses.route) },
         onNavigateToLuminaryDetails = { navController.navigate(Screen.LuminaryDetails.route) },
+        onNavigateToLumiSphereDetails = { navController.navigate(Screen.LumiSphereDetails.route) },
+        onNavigateToTeam = { navController.navigate(Screen.TeamManagement.route) },
         onAddProjectClick = { showAddProjectDialog = true }
     )
 
     if (showAddProjectDialog) {
-        AddProjectDialog(
+        AddEditProjectDialog(
             onDismiss = { showAddProjectDialog = false },
-            onSave = { name, budget, description, location, startDate, imageUrl, imageUri ->
-                projectsViewModel.addProject(
-                    name,
-                    budget,
-                    description,
-                    location,
-                    startDate,
-                    imageUrl,
-                    imageUri
-                )
+            onSave = { project, uri ->
+                projectsViewModel.addProject(project, uri)
                 showAddProjectDialog = false
             }
         )
@@ -109,6 +109,8 @@ fun CEODashboardContent(
     onNavigateToApprovals: () -> Unit,
     onNavigateToExpenses: () -> Unit,
     onNavigateToLuminaryDetails: () -> Unit,
+    onNavigateToLumiSphereDetails: () -> Unit,
+    onNavigateToTeam: () -> Unit,
     onAddProjectClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -120,6 +122,7 @@ fun CEODashboardContent(
     }
 
     Scaffold(
+        containerColor = Color(0xFFFBFBFE), // Soft premium background
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -127,23 +130,32 @@ fun CEODashboardContent(
                         "LUMISPHERE",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 4.sp,
-                            color = MaterialTheme.colorScheme.primary
+                            letterSpacing = 6.sp,
+                            color = Color(0xFF111827)
                         )
                     )
                 },
                 actions = {
-                    IconButton(onClick = { /* Notifications */ }) {
-                        BadgedBox(badge = { Badge { Text("3") } }) {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = "Notifications",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                    Surface(
+                        onClick = { /* Notifications */ },
+                        shape = CircleShape,
+                        color = Color.White,
+                        tonalElevation = 2.dp,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            BadgedBox(badge = { Badge(containerColor = Color(0xFFF43F5E)) { Text("3", color = Color.White) } }) {
+                                Icon(
+                                    imageVector = Icons.Default.NotificationsNone,
+                                    contentDescription = "Notifications",
+                                    tint = Color(0xFF374151)
+                                )
+                            }
                         }
                     }
+                    Spacer(Modifier.width(8.dp))
                     IconButton(onClick = onLogout) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, "Logout", tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.AutoMirrored.Filled.Logout, "Logout", tint = Color(0xFFF43F5E))
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -152,116 +164,89 @@ fun CEODashboardContent(
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = Color.White,
-                tonalElevation = 8.dp
+            Surface(
+                tonalElevation = 8.dp,
+                shadowElevation = 16.dp,
+                color = Color.White,
+                shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
             ) {
-                NavigationBarItem(
-                    selected = true,
-                    onClick = { },
-                    icon = { Icon(Icons.Default.Home, "Dashboard") },
-                    label = { Text("Home") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
-                        selectedTextColor = Color.Black,
-                        indicatorColor = Color.Black.copy(alpha = 0.05f),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
-                    )
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateToProjects,
-                    icon = { Icon(Icons.Default.BusinessCenter, "Projects") },
-                    label = { Text("Projects") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
-                        selectedTextColor = Color.Black,
-                        indicatorColor = Color.Black.copy(alpha = 0.05f),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
-                    )
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(bottom = 12.dp),
-                    contentAlignment = Alignment.Center
+                NavigationBar(
+                    containerColor = Color.Transparent,
+                    modifier = Modifier.height(80.dp)
                 ) {
-                    FloatingActionButton(
-                        onClick = onAddProjectClick,
-                        containerColor = Color.Black,
-                        contentColor = Color.White,
-                        shape = CircleShape,
-                        modifier = Modifier.size(56.dp)
+                    NavigationBarItem(
+                        selected = true,
+                        onClick = { },
+                        icon = { Icon(Icons.Default.Dashboard, "Dashboard") },
+                        label = { Text("Home", fontWeight = FontWeight.Bold) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color(0xFF6366F1),
+                            selectedTextColor = Color(0xFF6366F1),
+                            indicatorColor = Color(0xFF6366F1).copy(alpha = 0.1f),
+                            unselectedIconColor = Color(0xFF9CA3AF),
+                            unselectedTextColor = Color(0xFF9CA3AF)
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = onNavigateToProjects,
+                        icon = { Icon(Icons.Default.AccountTree, "Projects") },
+                        label = { Text("Projects") }
+                    )
+                    
+                    // Floating Center Action
+                    Box(
+                        modifier = Modifier.weight(1f).padding(bottom = 16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Add, "Quick Action")
+                        Surface(
+                            onClick = onAddProjectClick,
+                            shape = CircleShape,
+                            color = Color(0xFF111827),
+                            shadowElevation = 12.dp,
+                            modifier = Modifier.size(60.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Add, "Add", tint = Color.White, modifier = Modifier.size(32.dp))
+                            }
+                        }
                     }
+
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = onNavigateToReports,
+                        icon = { Icon(Icons.Default.BarChart, "Reports") },
+                        label = { Text("Reports") }
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { },
+                        icon = { Icon(Icons.Default.Settings, "Settings") },
+                        label = { Text("Settings") }
+                    )
                 }
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateToReports,
-                    icon = { Icon(Icons.Default.Assessment, "Reports") },
-                    label = { Text("Reports") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
-                        selectedTextColor = Color.Black,
-                        indicatorColor = Color.Black.copy(alpha = 0.05f),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
-                    )
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = { },
-                    icon = { Icon(Icons.Default.Person, "Profile") },
-                    label = { Text("Profile") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
-                        selectedTextColor = Color.Black,
-                        indicatorColor = Color.Black.copy(alpha = 0.05f),
-                        unselectedIconColor = Color.Gray,
-                        unselectedTextColor = Color.Gray
-                    )
-                )
             }
         }
     ) { padding ->
 
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    strokeWidth = 4.dp,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF6366F1))
             }
             return@Scaffold
         }
 
-        val stats = uiState.stats
-        val luminaryRevenue = stats.totalDonors * 15000L
-        val luminaryExpenses = stats.totalExpenses.toLong()
-        val luminaryProfit = luminaryRevenue - luminaryExpenses
-        val luminaryProgress = if (luminaryRevenue > 0) (luminaryProfit.toFloat() / luminaryRevenue).coerceIn(0f, 1f) else 0f
-
-        val lumispherePrograms = stats.totalProjects
-        val lumisphereBeneficiaries = stats.totalPartners * 250L + stats.totalDonors * 50L
-        val lumisphereProgress = (lumispherePrograms / 25f).coerceIn(0f, 1f)
-
+        val stats = uiState.generalStats
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(32.dp)
         ) {
-            // Header Section
+            // Executive Welcome Section
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -269,301 +254,425 @@ fun CEODashboardContent(
             ) {
                 Column {
                     Text(
-                        text = "Dashboard",
-                        style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Black)
+                        text = "Hello, Executive",
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black, letterSpacing = (-1).sp)
                     )
                     Text(
-                        text = "Executive Overview",
+                        text = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date()),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color(0xFF6B7280)
                     )
                 }
                 Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clickable { launcher.launch("image/*") },
-                    shadowElevation = 4.dp
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    modifier = Modifier.size(56.dp).clickable { launcher.launch("image/*") },
+                    shadowElevation = 2.dp
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (selectedImageUri != null) {
-                            Image(
-                                painter = rememberAsyncImagePainter(selectedImageUri),
-                                contentDescription = "CEO Profile Picture",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Text(
-                                text = "CEO",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                        // Small edit overlay icon indicator
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.BottomCenter
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AddAPhoto,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp).padding(bottom = 4.dp),
-                                tint = Color.White.copy(alpha = 0.7f)
-                            )
+                    if (selectedImageUri != null) {
+                        AsyncImage(
+                            model = selectedImageUri,
+                            contentDescription = "CEO Profile",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.background(Color(0xFFF3F4F6))) {
+                            Icon(Icons.Default.Person, null, tint = Color(0xFF9CA3AF))
                         }
                     }
                 }
             }
 
-            // Stats Grid
+            // High-Level Impact Stats Grid
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    ModernStatCard(
-                        title = "Total Projects",
-                        value = stats.totalProjects.toString(),
-                        icon = Icons.AutoMirrored.Filled.Assignment,
-                        iconColor = Color(0xFF6366F1),
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    PremiumStatCard(
+                        title = "Total Programs",
+                        value = uiState.totalProgramsCount.toString(),
                         trend = "+12%",
+                        icon = Icons.Default.RocketLaunch,
+                        color = Color(0xFF6366F1),
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToProjects
                     )
-                    ModernStatCard(
-                        title = "Total Funds",
-                        value = "\$${formatCompact(stats.totalDonors * 15000L)}", // Simplified logic for demo
-                        icon = Icons.Default.Payments,
-                        iconColor = Color(0xFF10B981),
-                        trend = "+8.5%",
+                    PremiumStatCard(
+                        title = "Total Funding",
+                        value = "KSh ${formatCompact(stats.totalDonors * 15000L)}",
+                        trend = "+8.4%",
+                        icon = Icons.Default.AccountBalance,
+                        color = Color(0xFF10B981),
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToDonors
                     )
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    ModernStatCard(
-                        title = "Total Expenses",
-                        value = "\$${formatCompact(stats.totalExpenses.toLong())}",
-                        icon = Icons.Default.AccountBalanceWallet,
-                        iconColor = Color(0xFFF43F5E),
-                        trend = "-4.2%",
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    PremiumStatCard(
+                        title = "Operational Cost",
+                        value = "KSh ${formatCompact(stats.totalExpenses.toLong())}",
+                        trend = "-2.1%",
+                        icon = Icons.Default.Wallet,
+                        color = Color(0xFFF43F5E),
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToExpenses
                     )
-                    ModernStatCard(
+                    PremiumStatCard(
                         title = "Impact Reach",
                         value = formatCompact(stats.totalPartners * 250L + stats.totalDonors * 50L),
-                        icon = Icons.Default.Group,
-                        iconColor = Color(0xFFF59E0B),
-                        trend = "+15%",
+                        trend = "+18%",
+                        icon = Icons.Default.Public,
+                        color = Color(0xFFF59E0B),
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToPartners
                     )
                 }
             }
 
-            // Brand Performance Section
+            // Brand Strategic View
             val pagerState = rememberPagerState(pageCount = { 2 })
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxWidth(),
-                    pageSpacing = 16.dp
-                ) { page ->
-                    if (page == 0) {
-                        BrandOverviewCard(
-                            brandName = "Luminary",
-                            brandType = "Business",
-                            overviewTitle = "Financial Overview",
-                            metrics = listOf(
-                                BrandMetric("Revenue", "\$${formatCompact(luminaryRevenue)}", "+10.3%"),
-                                BrandMetric("Expenses", "\$${formatCompact(luminaryExpenses)}", "+4.2%"),
-                                BrandMetric("Profit", "\$${formatCompact(luminaryProfit)}", "+18.7%")
-                            ),
-                            chartProgress = luminaryProgress,
-                            chartColor = Color(0xFF6366F1),
-                            centerIcon = Icons.Default.BusinessCenter,
-                            modifier = Modifier.fillMaxWidth(),
-                            onViewDetailsClick = onNavigateToLuminaryDetails
-                        )
-                    } else {
-                        BrandOverviewCard(
-                            brandName = "Lumisphere",
-                            brandType = "NGO",
-                            overviewTitle = "Impact Overview",
-                            metrics = listOf(
-                                BrandMetric("Total Donations", "\$${formatCompact(luminaryRevenue)}", "+14.5%"),
-                                BrandMetric("Programs Funded", lumispherePrograms.toString(), "+2"),
-                                BrandMetric("Beneficiaries", formatCompact(lumisphereBeneficiaries), "+10%")
-                            ),
-                            chartProgress = lumisphereProgress,
-                            chartColor = Color(0xFF10B981),
-                            centerIcon = Icons.Default.Favorite,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                // Pager Indicator
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    repeat(2) { iteration ->
-                        val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                        Box(
-                            modifier = Modifier
-                                .padding(2.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .size(if (pagerState.currentPage == iteration) 12.dp else 8.dp)
-                                .height(8.dp)
-                        )
-                    }
-                }
-            }
-
-            // Quick Actions
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    text = "Operational Actions",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    QuickActionButton(Icons.Default.Add, "Project", onAddProjectClick)
-                    QuickActionButton(Icons.Default.Assessment, "Reports") {
-                        onNavigateToReports()
-                    }
-                    QuickActionButton(Icons.AutoMirrored.Filled.FactCheck, "Approvals") {
-                        onNavigateToApprovals()
-                    }
-                    QuickActionButton(Icons.Default.Security, "Audit") {
-                        // Navigate to logs
-                    }
-                }
-            }
-
-            // Ongoing Initiatives Section
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Ongoing Initiatives",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Text(
-                        text = "View all",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { onNavigateToProjects() }
-                    )
-                }
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(bottom = 8.dp)
-                ) {
-                    if (uiState.initiatives.isEmpty()) {
-                        item {
-                            Text(
-                                "No ongoing initiatives found.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(vertical = 16.dp)
-                            )
-                        }
-                    } else {
-                        items(uiState.initiatives) { project ->
-                            InitiativeCard(
-                                initiative = Initiative(
-                                    title = project.name,
-                                    progress = project.progress,
-                                    status = project.status,
-                                    statusColor = when (project.status) {
-                                        "Ongoing" -> Color(0xFF10B981)
-                                        "At Risk" -> Color(0xFFF59E0B)
-                                        else -> Color(0xFFF43F5E)
-                                    },
-                                    brand = if (project.budget > 1000000) "LUMINARY" else "LUMISPHERE",
-                                    brandColor = if (project.budget > 1000000) Color(0xFF6366F1) else Color(0xFF10B981),
-                                    imageUrl = project.imageUrl ?: "https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2069"
-                                )
+                    Column {
+                        Text("Business Units", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                        Text("Performance across Luminary & LumiSphere", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        repeat(2) { index ->
+                            Box(
+                                modifier = Modifier
+                                    .size(if (pagerState.currentPage == index) 20.dp else 8.dp, 8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (pagerState.currentPage == index) Color(0xFF6366F1) else Color(0xFFE5E7EB))
                             )
                         }
                     }
                 }
-            }
-
-            // Alerts & Approvals Section
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Alerts & Approvals",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
-                Text(
-                    text = "View all",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onNavigateToApprovals() }
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (uiState.approvals.isEmpty()) {
-                    ActivityItem(
-                        title = "No pending approvals",
-                        desc = "You're all caught up!",
-                        time = "now",
-                        icon = Icons.Default.CheckCircle,
-                        iconColor = Color(0xFF10B981)
-                    )
-                } else {
-                    uiState.approvals.forEach { approval ->
-                        ActivityItem(
-                            title = approval.type,
-                            desc = "${approval.account} • Requested by ${approval.requestedBy}",
-                            time = approval.date,
-                            icon = when (approval.priority) {
-                                "High" -> Icons.Default.Warning
-                                "Medium" -> Icons.Default.PendingActions
-                                else -> Icons.Default.Info
-                            },
-                            iconColor = when (approval.priority) {
-                                "High" -> Color(0xFFF43F5E)
-                                "Medium" -> Color(0xFFF59E0B)
-                                else -> Color(0xFF10B981)
-                            }
+                
+                HorizontalPager(state = pagerState, pageSpacing = 16.dp) { page ->
+                    if (page == 0) {
+                        BrandStrategyCard(
+                            name = "Luminary",
+                            type = "BUSINESS UNIT",
+                            mainMetric = formatCurrency(uiState.lumStats.totalRevenue.toLong()),
+                            metricLabel = "Annual Revenue",
+                            progress = if (uiState.lumStats.totalRevenue > 0) 
+                                (uiState.lumStats.totalProfit.toFloat() / uiState.lumStats.totalRevenue.toFloat()).coerceIn(0f, 1f) 
+                                else 0.78f,
+                            accentColor = Color(0xFF6366F1),
+                            icon = Icons.Default.BusinessCenter,
+                            onDetailsClick = onNavigateToLuminaryDetails
+                        )
+                    } else {
+                        BrandStrategyCard(
+                            name = "LumiSphere",
+                            type = "NON-PROFIT UNIT",
+                            mainMetric = uiState.lumiSphereStats.totalPrograms.toString(),
+                            metricLabel = "Active Programs",
+                            progress = uiState.lumiSphereStats.impactScore / 10f,
+                            accentColor = Color(0xFF10B981),
+                            icon = Icons.Default.AutoAwesome,
+                            onDetailsClick = onNavigateToLumiSphereDetails
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            // Quick Operations
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Operations", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    QuickActionItem(Icons.Default.LibraryAdd, "Project", onAddProjectClick)
+                    QuickActionItem(Icons.Default.GroupAdd, "Staff", onNavigateToTeam)
+                    QuickActionItem(Icons.Default.AssignmentTurnedIn, "Approvals", onNavigateToApprovals)
+                    QuickActionItem(Icons.Default.Analytics, "Insights", onNavigateToReports)
+                }
+            }
+
+            // Ongoing Initiatives
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Top Initiatives", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    Text("See all", color = Color(0xFF6366F1), style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable { onNavigateToProjects() })
+                }
+                
+                if (uiState.initiatives.isEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFF3F4F6))
+                    ) {
+                        Column(Modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Inbox, null, modifier = Modifier.size(48.dp), tint = Color(0xFFD1D5DB))
+                            Text("No active initiatives found", color = Color(0xFF9CA3AF))
+                        }
+                    }
+                } else {
+                    uiState.initiatives.take(3).forEach { project ->
+                        InitiativeRowItem(
+                            project = project,
+                            onClick = { onNavigateToProjects() }
+                        )
+                    }
+                }
+            }
+
+            // Approvals Queue
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Text("Pending Approvals", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                
+                if (uiState.recentApprovals.isEmpty()) {
+                    Text("All clear! No pending tasks.", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    uiState.recentApprovals.forEach { approval ->
+                        ApprovalCompactCard(approval)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
+
+@Composable
+fun PremiumStatCard(
+    title: String,
+    value: String,
+    trend: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White,
+        modifier = modifier,
+        shadowElevation = 4.dp,
+        border = BorderStroke(1.dp, Color(0xFFF3F4F6))
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp), 
+                    color = color.copy(alpha = 0.1f), 
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) { 
+                        Icon(icon, null, tint = color, modifier = Modifier.size(24.dp)) 
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp), 
+                    color = if (trend.startsWith("+")) Color(0xFF10B981).copy(alpha = 0.1f) else Color(0xFFF43F5E).copy(alpha = 0.1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (trend.startsWith("+")) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                            contentDescription = null,
+                            tint = if (trend.startsWith("+")) Color(0xFF10B981) else Color(0xFFF43F5E),
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Text(
+                            text = trend.removePrefix("+").removePrefix("-"),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (trend.startsWith("+")) Color(0xFF10B981) else Color(0xFFF43F5E),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            Column {
+                Text(
+                    text = value, 
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Black),
+                    color = Color(0xFF111827)
+                )
+                Text(
+                    text = title, 
+                    style = MaterialTheme.typography.labelMedium, 
+                    color = Color(0xFF6B7280),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BrandStrategyCard(
+    name: String,
+    type: String,
+    mainMetric: String,
+    metricLabel: String,
+    progress: Float,
+    accentColor: Color,
+    icon: ImageVector,
+    onDetailsClick: () -> Unit
+) {
+    Surface(
+        onClick = onDetailsClick,
+        shape = RoundedCornerShape(32.dp),
+        color = Color(0xFF111827), // Modern dark theme for brand cards
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(shape = CircleShape, color = accentColor, modifier = Modifier.size(48.dp)) {
+                        Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(24.dp)) }
+                    }
+                    Column {
+                        Text(name, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                        Text(type, color = accentColor, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    }
+                }
+                Icon(Icons.Default.ArrowForward, null, tint = Color.White.copy(alpha = 0.5f))
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                Column {
+                    Text(mainMetric, color = Color.White, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
+                    Text(metricLabel, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+                }
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Overall Performance", color = Color.White, style = MaterialTheme.typography.labelSmall)
+                    CircularProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.size(44.dp),
+                        color = accentColor,
+                        strokeWidth = 6.dp,
+                        trackColor = Color.White.copy(alpha = 0.1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier.size(68.dp),
+            shadowElevation = 2.dp
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, label, tint = Color(0xFF111827), modifier = Modifier.size(28.dp))
+            }
+        }
+        Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF374151))
+    }
+}
+
+@Composable
+fun InitiativeRowItem(project: Project, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White,
+        modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(1.dp, Color(0xFFF3F4F6)),
+        shadowElevation = 2.dp
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Surface(
+                shape = RoundedCornerShape(16.dp), 
+                modifier = Modifier.size(64.dp),
+                color = Color(0xFFF3F4F6)
+            ) {
+                AsyncImage(
+                    model = project.imageUrl,
+                    contentDescription = "Project Image",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    error = androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Business),
+                    placeholder = androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Business)
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = project.name, 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LinearProgressIndicator(
+                        progress = { project.progress },
+                        modifier = Modifier.weight(1f).height(6.dp).clip(CircleShape),
+                        color = when {
+                            project.status == "At Risk" -> Color(0xFFF43F5E)
+                            project.progress >= 0.8f -> Color(0xFF10B981)
+                            else -> Color(0xFF6366F1)
+                        },
+                        trackColor = Color(0xFFF3F4F6)
+                    )
+                    Text("${(project.progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
+                }
+                Text(
+                    text = "Last updated: ${project.lastUpdated}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
+            }
+            Icon(Icons.Default.ChevronRight, null, tint = Color(0xFFD1D5DB))
+        }
+    }
+}
+
+@Composable
+fun ApprovalCompactCard(approval: Approval) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(1.dp, Color(0xFFF3F4F6))
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(
+                shape = CircleShape,
+                color = when(approval.priority) {
+                    "High" -> Color(0xFFF43F5E).copy(alpha = 0.1f)
+                    else -> Color(0xFF6366F1).copy(alpha = 0.1f)
+                },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (approval.priority == "High") Icons.Default.PriorityHigh else Icons.Default.Description,
+                        contentDescription = null,
+                        tint = if (approval.priority == "High") Color(0xFFF43F5E) else Color(0xFF6366F1),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(approval.type, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text(approval.requestedBy, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            }
+            Text("KSh ${formatCompact(approval.amount.toLong())}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black)
+        }
+    }
+}
+
 
 data class BrandMetric(
     val label: String,
@@ -863,6 +972,10 @@ fun formatCompact(number: Long): String {
     }
 }
 
+fun formatCurrency(amount: Long): String {
+    return "KSh ${formatCompact(amount)}"
+}
+
 @Composable
 fun ActivityItem(title: String, desc: String, time: String, icon: ImageVector, iconColor: Color) {
     Row(
@@ -1000,6 +1113,8 @@ fun CEODashboardPreview() {
             onNavigateToApprovals = {},
             onNavigateToExpenses = {},
             onNavigateToLuminaryDetails = {},
+            onNavigateToLumiSphereDetails = {},
+            onNavigateToTeam = {},
             onAddProjectClick = {}
         )
     }

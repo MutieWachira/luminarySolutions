@@ -7,10 +7,4 @@
         <item name="windowNoTitle">true</item>
     </style>
 
-    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#E61D1F1F</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
-        <item name="postSplashScreenTheme">@style/Theme.LuminarySolutions</item>
-    </style>
-
 </resources>

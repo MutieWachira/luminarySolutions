@@ -18,6 +18,7 @@ enum class ProjectFilter { ALL, ONGOING, COMPLETED, AT_RISK }
 
 data class ProjectsUiState(
     val projects: List<Project> = emptyList(),
+    val teamMembers: List<com.example.luminarysolutions.data.models.User> = emptyList(),
     val isLoading: Boolean = true,
     val searchQuery: String = "",
     val filter: ProjectFilter = ProjectFilter.ALL,
@@ -33,10 +34,11 @@ class ProjectsViewModel : ViewModel() {
 
     val uiState: StateFlow<ProjectsUiState> = combine(
         repository.getProjects(),
+        repository.getTeamMembers(),
         _searchQuery,
         _filter,
         _isSaving
-    ) { projects, query, filter, isSaving ->
+    ) { projects, teamMembers, query, filter, isSaving ->
         val processedProjects = projects.map { project ->
             project.copy(status = computeStatus(project))
         }
@@ -54,6 +56,7 @@ class ProjectsViewModel : ViewModel() {
         
         ProjectsUiState(
             projects = filtered,
+            teamMembers = teamMembers,
             isLoading = false,
             searchQuery = query,
             filter = filter,
@@ -73,46 +76,70 @@ class ProjectsViewModel : ViewModel() {
         _filter.value = filter
     }
 
-    fun addProject(
-        name: String,
-        budget: Int,
-        description: String,
-        location: String,
-        startDate: Long,
-        imageUrl: String? = null,
-        imageUri: Uri? = null
-    ) {
-        Log.d("ProjectsViewModel", "Attempting to add project: $name")
+    fun addProject(project: Project, imageUri: Uri? = null) {
+        Log.d("ProjectsViewModel", "Attempting to add project: ${project.name}")
         _isSaving.value = true
         
         viewModelScope.launch {
-            val finalImageUrl = if (imageUri != null) {
-                repository.uploadImage(imageUri)
+            val finalImageUrl = imageUri?.let { repository.uploadImage(it) }
+            
+            // Clean up: ensure no local URI string persists
+            val sanitizedImageUrl = if (finalImageUrl == null && project.imageUrl?.startsWith("content://") == true) {
+                null
             } else {
-                imageUrl
+                finalImageUrl ?: project.imageUrl
             }
 
-            val newProject = Project(
+            val projectWithImage = project.copy(
                 id = UUID.randomUUID().toString(),
-                name = name,
-                status = "Ongoing",
-                budget = budget,
-                spent = 0,
-                progress = 0f,
-                lastUpdated = "Just now",
-                imageUrl = finalImageUrl,
-                description = description,
-                location = location,
-                startDate = startDate,
-                tasks = emptyList()
+                imageUrl = sanitizedImageUrl,
+                lastUpdated = "Just now"
             )
             
-            repository.addProject(newProject) { success ->
+            repository.addProject(projectWithImage) { success ->
                 _isSaving.value = false
                 if (success) {
-                    Log.d("ProjectsViewModel", "Project added successfully")
+                    Log.d("ProjectsViewModel", "Project added successfully. URL: $sanitizedImageUrl")
                 } else {
-                    Log.e("ProjectsViewModel", "Failed to add project")
+                    Log.e("ProjectsViewModel", "Failed to add project to Firestore")
+                }
+            }
+        }
+    }
+
+    fun updateProject(project: Project, imageUri: Uri? = null) {
+        Log.d("ProjectsViewModel", "Attempting to update project: ${project.name}")
+        _isSaving.value = true
+
+        viewModelScope.launch {
+            val finalImageUrl = imageUri?.let { repository.uploadImage(it) }
+            
+            val sanitizedImageUrl = if (finalImageUrl == null && project.imageUrl?.startsWith("content://") == true) {
+                null
+            } else {
+                finalImageUrl ?: project.imageUrl
+            }
+
+            val updatedProject = project.copy(imageUrl = sanitizedImageUrl, lastUpdated = "Just now")
+
+            repository.updateProject(updatedProject) { success ->
+                _isSaving.value = false
+                if (success) {
+                    Log.d("ProjectsViewModel", "Project updated successfully. URL: $sanitizedImageUrl")
+                } else {
+                    Log.e("ProjectsViewModel", "Failed to update project in Firestore")
+                }
+            }
+        }
+    }
+
+    fun deleteProject(projectId: String) {
+        viewModelScope.launch {
+            repository.deleteProject(projectId) { success ->
+                if (success) {
+                    Log.d("ProjectsViewModel", "Project deleted successfully")
+                } else {
+                    Log.e("ProjectsViewModel", "Failed to delete project")
                 }
             }
         }

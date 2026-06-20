@@ -19,6 +19,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.luminarysolutions.R
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
@@ -74,7 +76,7 @@ fun ExpensesScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Record Expense", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.record_expense), fontWeight = FontWeight.Bold)
             }
         }
     ) { padding ->
@@ -97,7 +99,7 @@ fun ExpensesScreen(
                     
                     item {
                         Text(
-                            "Recent Transactions",
+                            stringResource(R.string.recent_transactions),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(vertical = 8.dp)
@@ -136,12 +138,12 @@ fun ExpenseSummaryHeader(expenses: List<Expense>) {
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
             Text(
-                "Total Monthly Spend",
+                stringResource(R.string.total_monthly_spend),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "KES ${totalAmount}",
+                "${stringResource(R.string.currency_prefix)} ${totalAmount}",
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.Black,
                     letterSpacing = (-1).sp
@@ -202,7 +204,7 @@ fun ModernExpenseCard(expense: Expense) {
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "KES ${expense.amount}",
+                    "${stringResource(R.string.currency_prefix)} ${expense.amount}",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
                     color = Color(0xFFF43F5E) // Expenses are typically negative/red
                 )
@@ -241,10 +243,10 @@ fun EmptyExpensesState(onAddClick: () -> Unit) {
             tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
         )
         Spacer(Modifier.height(16.dp))
-        Text("No expenses recorded", color = MaterialTheme.colorScheme.outline)
+        Text(stringResource(R.string.no_expenses_recorded), color = MaterialTheme.colorScheme.outline)
         Spacer(Modifier.height(24.dp))
         Button(onClick = onAddClick, shape = RoundedCornerShape(12.dp)) {
-            Text("Add Your First Expense")
+            Text(stringResource(R.string.add_first_expense))
         }
     }
 }
@@ -265,16 +267,16 @@ fun AddExpenseDialog(
                 onClick = { onSave(category, account, amount.toIntOrNull() ?: 0) },
                 enabled = category.isNotBlank() && account.isNotBlank() && amount.isNotBlank(),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("Save Expense") }
+            ) { Text(stringResource(R.string.save_expense)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-        title = { Text("Log New Expense", fontWeight = FontWeight.Bold) },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        title = { Text(stringResource(R.string.log_new_expense), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
                     value = category,
                     onValueChange = { category = it },
-                    label = { Text("Category") },
+                    label = { Text(stringResource(R.string.category)) },
                     placeholder = { Text("e.g. Fuel, Stationery") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -282,14 +284,14 @@ fun AddExpenseDialog(
                 OutlinedTextField(
                     value = account,
                     onValueChange = { account = it },
-                    label = { Text("Project / Account") },
+                    label = { Text(stringResource(R.string.project_account)) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("Amount (KES)") },
+                    label = { Text(stringResource(R.string.amount_kes)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)

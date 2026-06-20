@@ -16,15 +16,14 @@ glance = "1.1.1"
 uiText = "1.10.0"
 foundation = "1.10.0"
 materialIcons = "1.4.0"
-firebaseAuthKtx = "24.0.1"
+firebaseBom = "34.14.0"
 runtime = "1.10.1"
 foundationVersion = "1.10.1"
 uiGraphics = "1.10.1"
 foundationLayoutVersion = "1.10.1"
 hilt = "2.51"
 uiTestJunit4 = "1.10.1"
-firebaseFirestoreKtx = "26.1.0"
-firebaseAuthKtxVersion = "24.0.1"
+playServicesCoroutines = "1.10.1"
 cameraCore = "1.5.3"
 identityJvm = "202411.1"
 coil = "2.6.0"
@@ -60,8 +59,13 @@ androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", ve
 androidx-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayoutVersion" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
-firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-firestore-ktx", version.ref = "firebaseFirestoreKtx" }
-firebase-auth-ktx = { group = "com.google.firebase", name = "firebase-auth-ktx", version.ref = "firebaseAuthKtxVersion" }
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+firebase-functions = { group = "com.google.firebase", name = "firebase-functions" }
+firebase-storage = { group = "com.google.firebase", name = "firebase-storage" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+play-services-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "playServicesCoroutines" }
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
 identity-jvm = { group = "com.android.identity", name = "identity-jvm", version.ref = "identityJvm" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }

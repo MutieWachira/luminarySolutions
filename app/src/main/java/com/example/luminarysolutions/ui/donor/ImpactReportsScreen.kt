@@ -3,11 +3,16 @@ package com.example.luminarysolutions.ui.donor
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,18 +26,36 @@ fun ImpactReportsScreen(
     navController: NavController,
     vm: DonorViewModel = viewModel()
 ) {
-    LaunchedEffect(Unit) { vm.load("me") }
+    val uiState by vm.uiState.collectAsState()
+    val categories = listOf("All", "Education", "Health", "Environment", "Water", "Community")
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Impact Reports") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+            Column {
+                TopAppBar(
+                    title = { Text("Impact Reports") },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+                
+                // Category Selector
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(categories) { category ->
+                        FilterChip(
+                            selected = uiState.selectedCategory == category,
+                            onClick = { vm.setCategory(category) },
+                            label = { Text(category) },
+                            shape = CircleShape
+                        )
                     }
                 }
-            )
+            }
         }
     ) { padding ->
 
@@ -40,11 +63,17 @@ fun ImpactReportsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (vm.reports.isEmpty()) {
-                Text("No reports published yet.")
+            if (uiState.isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (uiState.reports.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No reports found for ${uiState.selectedCategory}.", color = Color.Gray)
+                }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(vm.reports, key = { it.id }) { r ->
+                    items(uiState.reports, key = { it.id }) { r ->
                         ReportCard(r)
                     }
                 }
@@ -57,11 +86,29 @@ fun ImpactReportsScreen(
 private fun ReportCard(r: ImpactReportUi) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(r.title, fontWeight = FontWeight.SemiBold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(r.title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                ) {
+                    Text(
+                        r.category,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
             Text("Period: ${r.period}", style = MaterialTheme.typography.bodySmall)
             Text("Published: ${r.publishedOn}", style = MaterialTheme.typography.bodySmall)
-            Divider()
-            Text(r.summary)
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            Text(r.summary, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

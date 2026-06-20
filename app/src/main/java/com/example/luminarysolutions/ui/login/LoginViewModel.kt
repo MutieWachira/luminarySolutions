@@ -60,17 +60,20 @@ class LoginViewModel : ViewModel() {
                     .document(uid)
                     .get()
                     .addOnSuccessListener { doc ->
-                        println("DOC EXISTS: ${doc.exists()}")
-                        println("DOC DATAL ${doc.data}")
+                        val isEnabled = doc.getBoolean("enabled") ?: true
+                        if (!isEnabled) {
+                            auth.signOut()
+                            uiState = LoginUiState.Error("Your account has been disabled. Please contact support.")
+                            return@addOnSuccessListener
+                        }
+
                         val roleString = doc.getString("role")
-                        android.util.Log.d("LoginViewModel", "Role string: $roleString")
                         role = safeValueOf(roleString)
-                        android.util.Log.d("LoginViewModel", "Role: $role")
-                        println("ROLE: $role")
                         uiState = LoginUiState.Success
                     }
-                    .addOnFailureListener {
-                        uiState = LoginUiState.Error("Failed to fetch role")
+                    .addOnFailureListener { e ->
+                        android.util.Log.e("LoginViewModel", "Failed to fetch role", e)
+                        uiState = LoginUiState.Error("Authentication sync failed. Please try again.")
                     }
             }
             .addOnFailureListener { exception ->
