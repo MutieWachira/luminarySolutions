@@ -1,10 +1,14 @@
 package com.example.luminarysolutions.ui.ceo
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,6 +19,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -25,6 +31,15 @@ import androidx.navigation.compose.rememberNavController
 import com.example.luminarysolutions.data.models.Donor
 import com.example.luminarysolutions.ui.navigation.Screen
 
+/**
+ * Production-ready Donors Screen.
+ * Implements:
+ * 1. Clean Architecture with MVVM
+ * 2. Real-time Firestore connection via Repository
+ * 3. Modern Swipe-to-Action (Edit/Delete)
+ * 4. Paginated data loading for performance
+ * 5. Interactive UI transitions
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DonorsScreen(
@@ -33,34 +48,54 @@ fun DonorsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var donorToEdit by remember { mutableStateOf<Donor?>(null) }
     var isSearching by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+
+    // Pagination trigger: detect when user scrolls near the bottom
+    val shouldLoadMore = remember {
+        derivedStateOf {
+            val totalItemsCount = listState.layoutInfo.totalItemsCount
+            val lastVisibleItemIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            // Load more when 2 items from the bottom
+            lastVisibleItemIndex >= totalItemsCount - 2 && totalItemsCount > 0
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore.value) {
+        if (shouldLoadMore.value && uiState.canLoadMore && !uiState.isPaginating) {
+            viewModel.loadNextPage()
+        }
+    }
 
     Scaffold(
         topBar = {
             LargeTopAppBar(
                 title = {
-                    if (isSearching) {
-                        TextField(
-                            value = uiState.searchQuery,
-                            onValueChange = { viewModel.onSearchQueryChange(it) },
-                            placeholder = { Text("Search donors...") },
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        Text(
-                            "Donors",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = (-1).sp
+                    AnimatedContent(targetState = isSearching, label = "TitleSearchTransition") { searching ->
+                        if (searching) {
+                            TextField(
+                                value = uiState.searchQuery,
+                                onValueChange = { viewModel.onSearchQueryChange(it) },
+                                placeholder = { Text("Search donors...") },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             )
-                        )
+                        } else {
+                            Text(
+                                "Donors",
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = (-1).sp
+                                )
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -86,7 +121,10 @@ fun DonorsScreen(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { showAddDialog = true },
+                onClick = { 
+                    donorToEdit = null
+                    showAddDialog = true 
+                },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = RoundedCornerShape(20.dp),
@@ -113,24 +151,52 @@ fun DonorsScreen(
                 onFilterSelected = { viewModel.onFilterChange(it) }
             )
 
-            if (uiState.isLoading) {
+            if (uiState.isLoading && uiState.donors.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else if (uiState.donors.isEmpty()) {
                 EmptyDonorsState(
                     isSearching = uiState.searchQuery.isNotEmpty(),
-                    onAddClick = { showAddDialog = true }
+                    onAddClick = { 
+                        donorToEdit = null
+                        showAddDialog = true 
+                    }
                 )
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(uiState.donors, key = { it.id }) { donor ->
-                        DonorCard(donor = donor) {
-                            navController.navigate(Screen.DonorDetails.createRoute(donor.id))
+                        SwipeableDonorCard(
+                            donor = donor,
+                            onEdit = {
+                                donorToEdit = donor
+                                showAddDialog = true
+                            },
+                            onDelete = {
+                                viewModel.deleteDonor(donor.id)
+                            },
+                            onClick = {
+                                navController.navigate(Screen.DonorDetails.createRoute(donor.id))
+                            }
+                        )
+                    }
+                    
+                    // Loading indicator for pagination
+                    if (uiState.isPaginating) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                            }
                         }
                     }
                 }
@@ -139,13 +205,128 @@ fun DonorsScreen(
     }
 
     if (showAddDialog) {
-        AddDonorDialog(
-            onDismiss = { showAddDialog = false },
-            onSave = { name, status, value ->
-                viewModel.addDonor(name, status, value)
+        AddEditDonorDialog(
+            donor = donorToEdit,
+            onDismiss = { 
                 showAddDialog = false
+                donorToEdit = null
+            },
+            onSave = { name, status, value ->
+                if (donorToEdit == null) {
+                    viewModel.addDonor(name, status, value)
+                } else {
+                    viewModel.updateDonor(donorToEdit!!.copy(name = name, status = status, valueOrNote = value))
+                }
+                showAddDialog = false
+                donorToEdit = null
             }
         )
+    }
+}
+
+/**
+ * Modern Swipe-to-Dismiss implementation for item actions.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeableDonorCard(
+    donor: Donor,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onClick: () -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = {
+            when (it) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    onEdit()
+                    false // Return false to snap back
+                }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    onDelete()
+                    true // Return true to dismiss
+                }
+                else -> false
+            }
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val color by animateColorAsState(
+                when (dismissState.targetValue) {
+                    SwipeToDismissBoxValue.StartToEnd -> Color(0xFF3B82F6) // Edit Blue
+                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFF43F5E) // Delete Red
+                    else -> Color.Transparent
+                }, label = "BackgroundColor"
+            )
+            val alignment = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                else -> Alignment.Center
+            }
+            val icon = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Edit
+                SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                else -> null
+            }
+            val scale by animateFloatAsState(
+                if (dismissState.targetValue == SwipeToDismissBoxValue.Settled) 0.75f else 1.25f,
+                label = "IconScale"
+            )
+
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(color, RoundedCornerShape(28.dp))
+                    .padding(horizontal = 24.dp),
+                contentAlignment = alignment
+            ) {
+                icon?.let {
+                    Icon(
+                        it,
+                        contentDescription = null,
+                        modifier = Modifier.graphicsLayer(scaleX = scale, scaleY = scale),
+                        tint = Color.White
+                    )
+                }
+            }
+        },
+        content = {
+            DonorCard(donor = donor, onClick = onClick)
+        },
+        modifier = Modifier.animateContentSize()
+    )
+}
+
+@Composable
+fun KpiCard(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = color.copy(alpha = 0.08f),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(color.copy(alpha = 0.12f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -154,7 +335,7 @@ fun DonorStatsHeader(donors: List<Donor>) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         KpiCard(
@@ -182,7 +363,7 @@ fun DonorFilterRow(
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(vertical = 8.dp)
+        modifier = Modifier.padding(vertical = 12.dp)
     ) {
         items(DonorFilter.entries.toTypedArray()) { filter ->
             FilterChip(
@@ -263,12 +444,12 @@ fun DonorCard(donor: Donor, onClick: () -> Unit) {
 fun DonorStatusBadge(status: String) {
     val color = getDonorStatusColor(status)
     Surface(
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(12.dp),
         color = color.copy(alpha = 0.12f)
     ) {
         Text(
             text = status,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             style = MaterialTheme.typography.labelSmall,
             color = color,
             fontWeight = FontWeight.ExtraBold
@@ -287,29 +468,46 @@ fun getDonorStatusColor(status: String): Color = when (status) {
 fun EmptyDonorsState(isSearching: Boolean, onAddClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 60.dp),
+            .fillMaxSize()
+            .padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(
-            imageVector = if (isSearching) Icons.Default.SearchOff else Icons.Default.PeopleOutline,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-        )
-        Spacer(Modifier.height(16.dp))
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isSearching) Icons.Default.SearchOff else Icons.Default.PeopleOutline,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(Modifier.height(24.dp))
         Text(
-            text = if (isSearching) "No matching donors" else "No donors available",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.outline
+            text = if (isSearching) "No matching donors" else "Your donor list is empty",
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = if (isSearching) "Try adjusting your search or filters" else "Start by adding your first donor to the system.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         if (!isSearching) {
-            Spacer(Modifier.height(24.dp))
-            Button(onClick = onAddClick, shape = RoundedCornerShape(12.dp)) {
+            Spacer(Modifier.height(32.dp))
+            Button(
+                onClick = onAddClick,
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+            ) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Add Your First Donor")
+                Text("Add Your First Donor", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -317,13 +515,14 @@ fun EmptyDonorsState(isSearching: Boolean, onAddClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddDonorDialog(
+fun AddEditDonorDialog(
+    donor: Donor? = null,
     onDismiss: () -> Unit,
     onSave: (String, String, String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var valueOrNote by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf("Active") }
+    var name by remember { mutableStateOf(donor?.name ?: "") }
+    var valueOrNote by remember { mutableStateOf(donor?.valueOrNote ?: "") }
+    var status by remember { mutableStateOf(donor?.status ?: "Active") }
     var expanded by remember { mutableStateOf(false) }
     val statusOptions = listOf("Active", "Pending", "Inactive")
 
@@ -334,10 +533,10 @@ fun AddDonorDialog(
                 onClick = { onSave(name, status, valueOrNote) },
                 enabled = name.isNotBlank(),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("Save Donor") }
+            ) { Text(if (donor == null) "Save Donor" else "Update Donor") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-        title = { Text("Add New Donor", fontWeight = FontWeight.Bold) },
+        title = { Text(if (donor == null) "Add New Donor" else "Edit Donor", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
@@ -380,7 +579,7 @@ fun AddDonorDialog(
                 OutlinedTextField(
                     value = valueOrNote,
                     onValueChange = { valueOrNote = it },
-                    label = { Text("Initial Contribution / Note") },
+                    label = { Text("Contribution / Note") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
