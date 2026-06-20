@@ -11,7 +11,9 @@ data class Team(
     val department: String = "",
     val jobtitle: String = "",
     val gender: String = "",
+    val bio: String = "",
     val role: UserRole = UserRole.TEAM,
     val enabled: Boolean = true,
+    val isTwoFactorEnabled: Boolean = false,
     val datejoined: Long = System.currentTimeMillis()
 )

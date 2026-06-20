@@ -3,6 +3,7 @@ package com.example.luminarysolutions.ui.auth
 enum class UserRole {
     CEO,
     ADMIN,
+    IT_ADMIN,
     VOLUNTEER,
     DONOR,
     TEAM,
@@ -20,6 +21,7 @@ fun safeValueOf(roleString: String?): UserRole {
     return when (normalized) {
         "CEO" -> UserRole.CEO
         "ADMIN" -> UserRole.ADMIN
+        "IT_ADMIN" -> UserRole.IT_ADMIN
         "VOLUNTEER" -> UserRole.VOLUNTEER
         "DONOR" -> UserRole.DONOR
         "TEAM" -> UserRole.TEAM
