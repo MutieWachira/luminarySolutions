@@ -2,10 +2,17 @@ package com.example.luminarysolutions.ui.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.luminarysolutions.data.repository.AuthRepository
+import com.example.luminarysolutions.data.repository.AuthStatus
 import com.example.luminarysolutions.ui.donor.data.DonorRepository
 import com.example.luminarysolutions.ui.donor.data.DonorRepositoryImpl
 import com.example.luminarysolutions.ui.donor.models.CampaignUi
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -24,6 +31,7 @@ data class LandingDashboardUiState(
         "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?q=80&w=1000"
     ),
     val isLoading: Boolean = false,
+    val isLoggedIn: Boolean = false,
     val error: String? = null
 )
 
@@ -32,30 +40,40 @@ data class LandingDashboardUiState(
  * Handles public data fetching and business logic for the entry screen.
  */
 class LandingDashboardViewModel(
-    private val donorRepository: DonorRepository = DonorRepositoryImpl()
+    private val donorRepository: DonorRepository = DonorRepositoryImpl(),
+    private val authRepository: AuthRepository = AuthRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LandingDashboardUiState(isLoading = true))
     val uiState: StateFlow<LandingDashboardUiState> = _uiState.asStateFlow()
 
     private val _selectedCategory = MutableStateFlow("All")
+    private var statsJob: Job? = null
+    private var dashboardJob: Job? = null
 
     init {
+        observeAuthStatus()
         observeGlobalStats()
         observeCampaigns()
+    }
+
+    private fun observeAuthStatus() {
+        viewModelScope.launch {
+            authRepository.getAuthState().collect { status ->
+                _uiState.update { it.copy(isLoggedIn = status is AuthStatus.Authenticated) }
+            }
+        }
     }
 
     /**
      * Updates the selected category and re-fetches campaigns.
      */
     fun onCategorySelected(category: String) {
+        if (_selectedCategory.value == category) return
         _selectedCategory.value = category
         _uiState.update { it.copy(selectedCategory = category, isLoading = true) }
         observeCampaigns()
     }
-
-    private var statsJob: kotlinx.coroutines.Job? = null
-    private var dashboardJob: kotlinx.coroutines.Job? = null
 
     /**
      * Observes all campaigns to calculate global impact metrics.
@@ -63,14 +81,19 @@ class LandingDashboardViewModel(
     private fun observeGlobalStats() {
         statsJob?.cancel()
         statsJob = viewModelScope.launch {
-            donorRepository.getCampaignsFlow(null).collect { allCampaigns ->
-                val totalRaised = allCampaigns.sumOf { it.raisedAmount }
-                val totalImpact = (allCampaigns.size * 1250) + (totalRaised / 100) // Simulated calculation
-                _uiState.update { it.copy(
-                    totalRaised = totalRaised,
-                    impactReached = "${totalImpact / 1000}K+"
-                ) }
-            }
+            donorRepository.getCampaignsFlow(null)
+                .catch { e ->
+                    _uiState.update { it.copy(error = "Failed to fetch stats: ${e.localizedMessage}") }
+                }
+                .collect { allCampaigns ->
+                    val totalRaised = allCampaigns.sumOf { it.raisedAmount }
+                    // Simulated calculation: $1 raised helps approx 1 person, plus base impact per campaign
+                    val totalImpactValue = (allCampaigns.size * 1250) + (totalRaised / 100) 
+                    _uiState.update { it.copy(
+                        totalRaised = totalRaised,
+                        impactReached = "${totalImpactValue / 1000}K+"
+                    ) }
+                }
         }
     }
 
@@ -85,7 +108,7 @@ class LandingDashboardViewModel(
             donorRepository.getCampaignsFlow(category)
                 .catch { e ->
                     _uiState.update { it.copy(
-                        error = "Unable to filter campaigns. ${e.localizedMessage}",
+                        error = "Unable to load campaigns. ${e.localizedMessage}",
                         isLoading = false
                     ) }
                 }

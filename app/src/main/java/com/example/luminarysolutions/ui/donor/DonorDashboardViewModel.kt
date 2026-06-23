@@ -30,6 +30,7 @@ data class DonorDashboardUiState(
     val totalRaised: String = "0",
     val activeCampaignsCount: String = "0",
     val hasMore: Boolean = false,
+    val isLoggedIn: Boolean = false,
     val error: String? = null
 )
 
@@ -41,6 +42,7 @@ class DonorDashboardViewModel(
     private val repository: CampaignRepository = CampaignRepositoryImpl()
 ) : ViewModel() {
 
+    private val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
     private val _uiState = MutableStateFlow(DonorDashboardUiState())
     val uiState: StateFlow<DonorDashboardUiState> = _uiState.asStateFlow()
 
@@ -48,7 +50,12 @@ class DonorDashboardViewModel(
     private val pageSize = 6
 
     init {
+        checkAuthStatus()
         loadInitialData()
+    }
+
+    private fun checkAuthStatus() {
+        _uiState.value = _uiState.value.copy(isLoggedIn = auth.currentUser != null)
     }
 
     private fun loadInitialData() {

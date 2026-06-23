@@ -1,15 +1,19 @@
 package com.example.luminarysolutions.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.luminarysolutions.data.repository.AuthStatus
+import com.example.luminarysolutions.ui.AuthViewModel
 import com.example.luminarysolutions.ui.auth.UserRole
 import com.example.luminarysolutions.ui.ceo.ApprovalsScreen
 import com.example.luminarysolutions.ui.ceo.BeneficiariesScreen
@@ -35,6 +39,7 @@ import com.example.luminarysolutions.ui.donor.CampaignsScreen
 import com.example.luminarysolutions.ui.donor.DonationHistoryScreen
 import com.example.luminarysolutions.ui.donor.DonationTypeScreen
 import com.example.luminarysolutions.ui.donor.DonorDashboardScreen
+import com.example.luminarysolutions.ui.donor.DonorMainScreen
 import com.example.luminarysolutions.ui.donor.DonorSignUpScreen
 import com.example.luminarysolutions.ui.donor.ImpactReportsScreen
 import com.example.luminarysolutions.ui.donor.PaymentSelectionScreen
@@ -54,9 +59,11 @@ import com.example.luminarysolutions.ui.volunteer.VolunteerSignUpScreen
 @Composable
 fun AppNavHost(
     modifier: Modifier = Modifier,
-    viewModel: LoginViewModel = viewModel()
+    loginViewModel: LoginViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
 ) {
     val navController = rememberNavController()
+    val authStatus by authViewModel.authStatus.collectAsStateWithLifecycle()
 
     NavHost(
         modifier = modifier,
@@ -66,8 +73,34 @@ fun AppNavHost(
 
         // Public Landing Dashboard
         composable(Screen.PublicDashboard.route) {
+            // Redirect if already logged in
+            LaunchedEffect(authStatus) {
+                if (authStatus is AuthStatus.Authenticated) {
+                    val status = authStatus as AuthStatus.Authenticated
+                    val destination = when (status.role) {
+                        UserRole.CEO -> Screen.CEODashboard.route
+                        UserRole.ADMIN -> Screen.ITAdminDashboard.route
+                        UserRole.VOLUNTEER -> Screen.VolunteerDashboard.route
+                        UserRole.DONOR -> Screen.DonorDashboard.route
+                        UserRole.TEAM -> Screen.TeamDashboard.route
+                        else -> null
+                    }
+                    if (destination != null) {
+                        navController.navigate(destination) {
+                            popUpTo(Screen.PublicDashboard.route) { inclusive = true }
+                        }
+                    }
+                }
+            }
+
             LandingDashboardScreen(
                 onLoginClick = { navController.navigate(Screen.Login.route) },
+                onLogoutClick = {
+                    authViewModel.signOut()
+                    navController.navigate(Screen.PublicDashboard.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
                 onCampaignClick = { campaignId -> 
                     navController.navigate(Screen.CampaignDetails.createRoute(campaignId))
                 },
@@ -81,23 +114,39 @@ fun AppNavHost(
         }
 
         // Login
-        composable(Screen.Login.route) {
+        composable(
+            route = Screen.Login.route,
+            arguments = listOf(navArgument("returnTo") { 
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) { backStackEntry ->
+            val returnTo = backStackEntry.arguments?.getString("returnTo")
+            val loginRole by loginViewModel.role.collectAsStateWithLifecycle()
+
             LoginScreen(
                 onLoginSuccess = {
-                    val destination = when (viewModel.role) {
-                        UserRole.CEO -> Screen.CEODashboard.route
-                        UserRole.ADMIN -> Screen.ITAdminDashboard.route
-                        UserRole.VOLUNTEER -> Screen.VolunteerDashboard.route
-                        UserRole.DONOR -> Screen.DonorDashboard.route
-                        UserRole.TEAM -> Screen.TeamDashboard.route
-                        else -> Screen.PublicDashboard.route
-                    }
-                    navController.navigate(destination) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
-                        launchSingleTop = true
+                    if (returnTo != null) {
+                        navController.navigate(returnTo) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    } else {
+                        val destination = when (loginRole) {
+                            UserRole.CEO -> Screen.CEODashboard.route
+                            UserRole.ADMIN -> Screen.ITAdminDashboard.route
+                            UserRole.VOLUNTEER -> Screen.VolunteerDashboard.route
+                            UserRole.DONOR -> Screen.DonorDashboard.route
+                            UserRole.TEAM -> Screen.TeamDashboard.route
+                            else -> Screen.PublicDashboard.route
+                        }
+                        navController.navigate(destination) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 },
-                viewModel = viewModel
+                viewModel = loginViewModel
             )
         }
 
@@ -106,7 +155,7 @@ fun AppNavHost(
             CEODashboardScreen(
                 navController = navController,
                 role = UserRole.CEO,
-                loginViewModel = viewModel
+                loginViewModel = loginViewModel
             )
         }
 
@@ -193,7 +242,7 @@ fun AppNavHost(
             ITAdminDashboardScreen(
                 navController = navController,
                 role = UserRole.ADMIN,
-                viewModel = viewModel
+                viewModel = loginViewModel
             )
         }
         composable(Screen.Users.route) {
@@ -219,10 +268,14 @@ fun AppNavHost(
 
         // Donor module routes
         composable(Screen.DonorDashboard.route) { 
-            DonorDashboardScreen(
-                navController = navController,
-                onLoginClick = { navController.navigate(Screen.Login.route) }
-            ) 
+            if (authStatus is AuthStatus.Authenticated) {
+                DonorMainScreen(navController)
+            } else {
+                DonorDashboardScreen(
+                    navController = navController,
+                    onLoginClick = { navController.navigate(Screen.Login.route) }
+                )
+            }
         }
         composable(Screen.DonorCampaigns.route) { CampaignsScreen(navController) }
         composable(Screen.DonorDonations.route) { DonationHistoryScreen(navController) }
@@ -272,11 +325,28 @@ fun AppNavHost(
             arguments = listOf(navArgument("projectId") { type = NavType.StringType })
         ) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
-            DonationTypeScreen(
-                onLogin = { navController.navigate(Screen.Login.route) },
-                onSignUp = { navController.navigate(Screen.DonorSignUp.route) },
-                onBack = { navController.popBackStack() }
-            )
+            
+            if (authStatus is AuthStatus.Authenticated) {
+                // Logged in: Go to payment selection
+                PaymentSelectionScreen(
+                    projectId = projectId,
+                    donorId = (authStatus as AuthStatus.Authenticated).uid,
+                    onSuccess = {
+                        navController.popBackStack(Screen.PublicDashboard.route, inclusive = false)
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            } else {
+                // Not logged in: Show choice or redirect to login
+                DonationTypeScreen(
+                    onLogin = { 
+                        val returnRoute = Screen.Donation.createRoute(projectId)
+                        navController.navigate(Screen.Login.createRoute(returnRoute)) 
+                    },
+                    onSignUp = { navController.navigate(Screen.DonorSignUp.route) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
 
         composable(Screen.DonorSignUp.route) {

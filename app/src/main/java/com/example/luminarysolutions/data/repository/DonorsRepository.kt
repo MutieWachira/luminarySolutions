@@ -43,4 +43,11 @@ class DonorsRepository {
     fun deleteDonor(donorId: String, onComplete: (Boolean) -> Unit) {
         FirestoreService.deleteDonor(donorId, onComplete)
     }
+
+    /**
+     * Registers a new donor in the system with full user profile.
+     */
+    fun registerDonor(user: com.example.luminarysolutions.data.models.User, donor: Donor, onComplete: (Boolean) -> Unit) {
+        FirestoreService.registerDonor(user, donor, onComplete)
+    }
 }

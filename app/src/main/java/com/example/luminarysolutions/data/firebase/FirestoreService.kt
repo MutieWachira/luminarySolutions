@@ -628,6 +628,30 @@ object FirestoreService {
         }.addOnFailureListener { onComplete(false) }
     }
 
+    /**
+     * Registers a new donor by creating both a User document and a Donor item.
+     * Uses a batch write to ensure atomicity.
+     */
+    fun registerDonor(user: User, donor: Donor, onComplete: (Boolean) -> Unit) {
+        val batch = db.batch()
+        
+        // 1. Create User document
+        batch.set(db.collection("users").document(user.id), mapFromUser(user))
+        
+        // 2. Create Donor item in Lumisphere
+        batch.set(getDonorsCollection().document(user.id), mapFromDonor(donor))
+        
+        // 3. Increment donor count (Safely handles case where summary document doesn't exist)
+        batch.set(db.collection("lumisphere").document("donors"), mapOf("count" to FieldValue.increment(1)), SetOptions.merge())
+        
+        batch.commit()
+            .addOnSuccessListener { onComplete(true) }
+            .addOnFailureListener { e ->
+                Log.e("FirestoreService", "Donor registration failed", e)
+                onComplete(false) 
+            }
+    }
+
     fun getPartners(): Flow<List<Partner>> = callbackFlow {
         val reg = getPartnersCollection().orderBy("lastContactDate", Query.Direction.DESCENDING)
             .addSnapshotListener { snp, _ -> trySend(snp?.documents?.mapNotNull { mapToPartner(it) } ?: emptyList()) }
@@ -1108,9 +1132,9 @@ object FirestoreService {
             }
             
             transaction.set(donationRef, donationData)
-            transaction.update(summaryRef, "totalAmount", FieldValue.increment(amount.toLong()))
+            transaction.set(summaryRef, mapOf("totalAmount" to FieldValue.increment(amount.toLong())), SetOptions.merge())
             // Sync with revenue document for consistency across repositories
-            transaction.update(db.collection("lumisphere").document("revenue"), "totalAmount", FieldValue.increment(amount.toLong()))
+            transaction.set(db.collection("lumisphere").document("revenue"), mapOf("totalAmount" to FieldValue.increment(amount.toLong())), SetOptions.merge())
         }.addOnSuccessListener {
             onComplete(true)
         }.addOnFailureListener { e ->
