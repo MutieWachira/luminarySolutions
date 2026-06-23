@@ -11,20 +11,44 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.luminarysolutions.ui.auth.UserRole
-import com.example.luminarysolutions.ui.ceo.*
+import com.example.luminarysolutions.ui.ceo.ApprovalsScreen
+import com.example.luminarysolutions.ui.ceo.BeneficiariesScreen
+import com.example.luminarysolutions.ui.ceo.CommunityScreen
 import com.example.luminarysolutions.ui.ceo.Dashboard.CEODashboardScreen
-import com.example.luminarysolutions.ui.ceo.TeamManagementScreen
 import com.example.luminarysolutions.ui.ceo.Dashboard.Luminary.LuminaryDetailsScreen
 import com.example.luminarysolutions.ui.ceo.Dashboard.Lumisphere.LumiSphereDetailsScreen
+import com.example.luminarysolutions.ui.ceo.DonorsScreen
+import com.example.luminarysolutions.ui.ceo.ExpensesScreen
+import com.example.luminarysolutions.ui.ceo.FinanceScreen
+import com.example.luminarysolutions.ui.ceo.FreelanceDetailsScreen
+import com.example.luminarysolutions.ui.ceo.GrievancesScreen
+import com.example.luminarysolutions.ui.ceo.PartnerDetailsScreen
+import com.example.luminarysolutions.ui.ceo.PartnerScreen
+import com.example.luminarysolutions.ui.ceo.ProjectDetailsScreen
+import com.example.luminarysolutions.ui.ceo.ProjectsScreen
+import com.example.luminarysolutions.ui.ceo.ReportsScreen
+import com.example.luminarysolutions.ui.ceo.TeamManagementScreen
+import com.example.luminarysolutions.ui.ceo.VolunteerDetailsScreen
 import com.example.luminarysolutions.ui.dashboard.LandingDashboardScreen
-import com.example.luminarysolutions.ui.dashboard.LandingDashboardViewModel
-import com.example.luminarysolutions.ui.donor.*
+import com.example.luminarysolutions.ui.donor.CampaignDetailsScreen
+import com.example.luminarysolutions.ui.donor.CampaignsScreen
+import com.example.luminarysolutions.ui.donor.DonationHistoryScreen
+import com.example.luminarysolutions.ui.donor.DonationTypeScreen
+import com.example.luminarysolutions.ui.donor.DonorDashboardScreen
+import com.example.luminarysolutions.ui.donor.DonorSignUpScreen
+import com.example.luminarysolutions.ui.donor.ImpactReportsScreen
+import com.example.luminarysolutions.ui.donor.PaymentSelectionScreen
+import com.example.luminarysolutions.ui.itadmin.AuditLogsScreen
+import com.example.luminarysolutions.ui.itadmin.ITAdminDashboardScreen
+import com.example.luminarysolutions.ui.itadmin.RoleDetailsScreen
+import com.example.luminarysolutions.ui.itadmin.RolesScreen
+import com.example.luminarysolutions.ui.itadmin.SystemSettingsScreen
+import com.example.luminarysolutions.ui.itadmin.UsersScreen
 import com.example.luminarysolutions.ui.login.LoginScreen
 import com.example.luminarysolutions.ui.login.LoginViewModel
-import com.example.luminarysolutions.ui.itadmin.*
-import com.example.luminarysolutions.ui.volunteer.*
-import com.example.luminarysolutions.ui.volunteer.VolunteerSignUpScreen
 import com.example.luminarysolutions.ui.team.TeamDashboardScreen
+import com.example.luminarysolutions.ui.volunteer.VolunteerMainScreen
+import com.example.luminarysolutions.ui.volunteer.VolunteerSignUpScreen
 
 
 @Composable
@@ -60,18 +84,17 @@ fun AppNavHost(
         composable(Screen.Login.route) {
             LoginScreen(
                 onLoginSuccess = {
-                    when (viewModel.role) {
-                        UserRole.CEO ->
-                            navController.navigate(Screen.CEODashboard.route) {
-                                popUpTo(Screen.Login.route) { inclusive = true }
-                                launchSingleTop = true
-                            }
-
-                        UserRole.ADMIN -> navController.navigate(Screen.ITAdminDashboard.route)
-                        UserRole.VOLUNTEER -> navController.navigate(Screen.VolunteerDashboard.route)
-                        UserRole.DONOR -> navController.navigate(Screen.DonorDashboard.route)
-                        UserRole.TEAM -> navController.navigate(Screen.TeamDashboard.route)
-                        else -> navController.navigate(Screen.Login.route)
+                    val destination = when (viewModel.role) {
+                        UserRole.CEO -> Screen.CEODashboard.route
+                        UserRole.ADMIN -> Screen.ITAdminDashboard.route
+                        UserRole.VOLUNTEER -> Screen.VolunteerDashboard.route
+                        UserRole.DONOR -> Screen.DonorDashboard.route
+                        UserRole.TEAM -> Screen.TeamDashboard.route
+                        else -> Screen.PublicDashboard.route
+                    }
+                    navController.navigate(destination) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                        launchSingleTop = true
                     }
                 },
                 viewModel = viewModel
@@ -193,15 +216,6 @@ fun AppNavHost(
 
         //volunteer module routes
         composable(Screen.VolunteerDashboard.route) { VolunteerMainScreen(navController) }
-        composable(Screen.VolunteerTasks.route) { VolunteerTasksScreen(navController) }
-        composable(
-         route = Screen.VolunteerTaskDetails.route,
-        arguments = listOf(navArgument("taskId") { type = NavType.StringType })
-         ) { backStackEntry ->
-        val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
-          VolunteerTaskDetailsScreen(navController, taskId)
-        }
-        composable(Screen.VolunteerEvents.route) { VolunteerEventsScreen(navController) }
 
         // Donor module routes
         composable(Screen.DonorDashboard.route) { 
@@ -259,13 +273,14 @@ fun AppNavHost(
         ) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
             DonationTypeScreen(
-                onSignUp = { navController.navigate(Screen.Login.route) },
-                onContinueGuest = { 
-                    // Navigate to payment selection, passing projectId if needed
-                    navController.navigate("payment_selection/$projectId")
-                },
+                onLogin = { navController.navigate(Screen.Login.route) },
+                onSignUp = { navController.navigate(Screen.DonorSignUp.route) },
                 onBack = { navController.popBackStack() }
             )
+        }
+
+        composable(Screen.DonorSignUp.route) {
+            DonorSignUpScreen(navController)
         }
 
         composable(

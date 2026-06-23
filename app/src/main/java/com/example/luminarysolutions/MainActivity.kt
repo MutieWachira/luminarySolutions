@@ -9,7 +9,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.example.luminarysolutions.ui.navigation.AppNavHost
@@ -31,6 +35,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val mainViewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -39,7 +45,10 @@ class MainActivity : ComponentActivity() {
         initializeFcm()
 
         setContent {
-            LuminarySolutionsTheme {
+            val userProfile by mainViewModel.userProfile.collectAsState()
+            val isDarkMode = userProfile?.darkModeEnabled ?: isSystemInDarkTheme()
+
+            LuminarySolutionsTheme(darkTheme = isDarkMode) {
                 AppNavHost(
                     modifier = Modifier.fillMaxSize()
                 )

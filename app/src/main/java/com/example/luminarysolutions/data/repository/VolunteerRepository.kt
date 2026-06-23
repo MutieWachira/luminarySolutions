@@ -6,9 +6,7 @@ import com.example.luminarysolutions.data.models.Notification
 import com.example.luminarysolutions.data.models.Project
 import com.example.luminarysolutions.data.models.Task
 import com.example.luminarysolutions.data.models.Volunteer
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 
 class VolunteerRepository {
     private val firestoreService = FirestoreService
@@ -40,6 +38,6 @@ class VolunteerRepository {
         firestoreService.getAssignedProjects(listOf(userId))
 
     fun updateTaskStatus(projectId: String, taskId: String, isDone: Boolean, onComplete: (Boolean) -> Unit) {
-        firestoreService.updateTaskStatusInProject(projectId, taskId, isDone, onComplete)
+        firestoreService.updateTaskStatus(projectId, taskId, isDone, null, onComplete)
     }
 }

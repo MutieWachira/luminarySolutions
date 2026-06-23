@@ -14,11 +14,12 @@ import com.example.luminarysolutions.data.repository.VolunteerRepository
 import com.example.luminarysolutions.ui.volunteer.models.TaskStatus
 import com.example.luminarysolutions.ui.volunteer.models.VolunteerEventUi
 import com.example.luminarysolutions.ui.volunteer.models.VolunteerTaskUi
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -72,9 +73,17 @@ class VolunteerViewModel : ViewModel() {
     var events by mutableStateOf<List<VolunteerEventUi>>(emptyList())
         private set
 
+    private var isLoaded = false
+
     fun load(volunteerId: String) {
+        if (isLoaded) return
+        isLoaded = true
+
         val currentUserId = auth.currentUser?.uid ?: volunteerId
         
+        // Ensure achievements are seeded if collection is empty
+        com.example.luminarysolutions.data.firebase.FirestoreService.seedAchievements()
+
         viewModelScope.launch {
             repository.getVolunteerProfile(currentUserId).collect {
                 _profile.value = it
@@ -87,6 +96,7 @@ class VolunteerViewModel : ViewModel() {
         }
         viewModelScope.launch {
             repository.getAchievements().collect {
+                android.util.Log.d("VolunteerViewModel", "Loaded ${it.size} achievements")
                 _achievements.value = it
             }
         }
@@ -145,14 +155,22 @@ class VolunteerViewModel : ViewModel() {
         }
     }
 
-    fun changePassword(newPassword: String) {
-        viewModelScope.launch {
-            try {
-                auth.currentUser?.updatePassword(newPassword)?.await()
-                // You might want to update some local state or show a success message
-            } catch (e: Exception) {
-                // Handle error
+    fun changePassword(currentPassword: String, newPassword: String, onResult: (Boolean, String?) -> Unit) {
+        val user = auth.currentUser
+        val email = user?.email
+        if (user != null && email != null) {
+            val credential = EmailAuthProvider.getCredential(email, currentPassword)
+            viewModelScope.launch {
+                try {
+                    user.reauthenticate(credential).await()
+                    user.updatePassword(newPassword).await()
+                    onResult(true, null)
+                } catch (e: Exception) {
+                    onResult(false, e.localizedMessage)
+                }
             }
+        } else {
+            onResult(false, "User not authenticated")
         }
     }
 
@@ -174,14 +192,16 @@ class VolunteerViewModel : ViewModel() {
 
     fun getTask(taskId: String) = tasks.firstOrNull { it.id == taskId }
 
-    fun setStatus(taskId: String, status: TaskStatus) {
+    fun setStatus(taskId: String, status: TaskStatus, onComplete: (Boolean) -> Unit = {}) {
         val task = tasks.firstOrNull { it.id == taskId } ?: return
         viewModelScope.launch {
             repository.updateTaskStatus(
                 projectId = task.projectId,
                 taskId = taskId,
                 isDone = status == TaskStatus.DONE
-            ) { /* Handle result */ }
+            ) { success ->
+                onComplete(success)
+            }
         }
     }
 
@@ -192,5 +212,7 @@ class VolunteerViewModel : ViewModel() {
 
     fun signOut() {
         auth.signOut()
+        isLoaded = false
+        _profile.value = null
     }
 }
