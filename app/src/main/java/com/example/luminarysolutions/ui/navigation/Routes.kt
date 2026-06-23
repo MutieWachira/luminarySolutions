@@ -1,7 +1,9 @@
 package com.example.luminarysolutions.ui.navigation
 
 sealed class Screen(val route: String) {
-    object Login : Screen("login")
+    object Login : Screen("login?returnTo={returnTo}") {
+        fun createRoute(returnTo: String? = null) = if (returnTo != null) "login?returnTo=$returnTo" else "login"
+    }
     object PublicDashboard : Screen("public_dashboard")
 
     //ceo module
@@ -77,6 +79,7 @@ sealed class Screen(val route: String) {
     object DonorCampaigns : Screen("donor_campaigns")
     object DonorDonations : Screen("donor_donations")
     object DonorReports : Screen("donor_reports")
+    object DonorProfile : Screen("donor_profile")
 
     object CampaignDetails : Screen("campaign_details/{campaignId}") {
         fun createRoute(campaignId: String) = "campaign_details/$campaignId"
@@ -89,4 +92,6 @@ sealed class Screen(val route: String) {
     object Donation : Screen("donation/{projectId}") {
         fun createRoute(projectId: String) = "donation/$projectId"
     }
+
+    object DonorSignUp : Screen("donor_signup")
 }

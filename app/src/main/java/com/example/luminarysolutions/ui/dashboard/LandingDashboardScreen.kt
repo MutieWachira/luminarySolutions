@@ -3,7 +3,19 @@ package com.example.luminarysolutions.ui.dashboard
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -13,9 +25,32 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,9 +59,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.luminarysolutions.ui.donor.models.CampaignUi
@@ -42,6 +77,7 @@ import kotlinx.coroutines.launch
 fun LandingDashboardScreen(
     viewModel: LandingDashboardViewModel = viewModel(),
     onLoginClick: () -> Unit,
+    onLogoutClick: () -> Unit = {},
     onCampaignClick: (String) -> Unit,
     onVolunteerClick: () -> Unit,
     onDonateClick: (String) -> Unit
@@ -50,6 +86,7 @@ fun LandingDashboardScreen(
     LandingDashboardContent(
         uiState = uiState,
         onLoginClick = onLoginClick,
+        onLogoutClick = onLogoutClick,
         onCampaignClick = onCampaignClick,
         onVolunteerClick = onVolunteerClick,
         onDonateClick = onDonateClick,
@@ -62,136 +99,168 @@ fun LandingDashboardScreen(
 fun LandingDashboardContent(
     uiState: LandingDashboardUiState,
     onLoginClick: () -> Unit,
+    onLogoutClick: () -> Unit,
     onCampaignClick: (String) -> Unit,
     onVolunteerClick: () -> Unit,
     onDonateClick: (String) -> Unit,
     onCategorySelected: (String) -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        "LUMISPHERE",
-                        fontWeight = FontWeight.Black, 
-                        letterSpacing = 2.sp,
-                        color = MaterialTheme.colorScheme.primary
-                    ) 
-                },
-                actions = {
-                    TextButton(
-                        onClick = onLoginClick,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("LOGIN", fontWeight = FontWeight.Bold)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+    BoxWithConstraints {
+        val isTablet = maxWidth > 600.dp
+        
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { 
+                        Text(
+                            "LUMISPHERE",
+                            fontWeight = FontWeight.Black, 
+                            letterSpacing = 2.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        ) 
+                    },
+                    actions = {
+                        if (!uiState.isLoggedIn) {
+                            TextButton(
+                                onClick = onLoginClick,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("LOGIN", fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            IconButton(onClick = onLogoutClick) {
+                                Icon(Icons.Default.Logout, contentDescription = "Logout")
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                    )
                 )
-            )
-        }
-    ) { padding ->
-        if (uiState.isLoading && uiState.featuredCampaigns.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                // Error Banner
-                uiState.error?.let { error ->
+        ) { padding ->
+            if (uiState.isLoading && uiState.featuredCampaigns.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    // Error Banner
+                    uiState.error?.let { error ->
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = error,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(16.dp),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+
+                    // Auto-sliding Hero Carousel
                     item {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(12.dp)
+                        HeroCarousel(uiState.heroImages, isTablet)
+                    }
+
+                    // Impact Metrics
+                    item {
+                        ImpactStatsSection(uiState)
+                    }
+
+                    // Categories
+                    item {
+                        CategorySelector(
+                            categories = uiState.categories,
+                            selectedCategory = uiState.selectedCategory,
+                            onCategorySelected = onCategorySelected
+                        )
+                    }
+
+                    // Featured Campaigns Title
+                    item {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = error,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.padding(16.dp),
-                                style = MaterialTheme.typography.bodySmall
+                                if (uiState.selectedCategory == "All") "Featured Campaigns" else "${uiState.selectedCategory} Campaigns",
+                                style = if (isTablet) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (uiState.isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            }
+                        }
+                    }
+
+                    // Campaign List / Grid
+                    if (isTablet) {
+                        items(uiState.featuredCampaigns.chunked(2), key = { it.first().id }) { chunk ->
+                            Row(
+                                modifier = Modifier.padding(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                chunk.forEach { campaign ->
+                                    CampaignCard(
+                                        campaign = campaign, 
+                                        onClick = { onCampaignClick(campaign.id) },
+                                        onDonateClick = { onDonateClick(campaign.id) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                if (chunk.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    } else {
+                        items(uiState.featuredCampaigns, key = { it.id }) { campaign ->
+                            CampaignCard(
+                                campaign = campaign, 
+                                onClick = { onCampaignClick(campaign.id) },
+                                onDonateClick = { onDonateClick(campaign.id) },
+                                modifier = Modifier.padding(horizontal = 20.dp)
                             )
                         }
                     }
-                }
 
-                // Auto-sliding Hero Carousel
-                item {
-                    HeroCarousel(uiState.heroImages)
-                }
-
-                // Impact Metrics
-                item {
-                    ImpactStatsSection(uiState)
-                }
-
-                // Categories
-                item {
-                    CategorySelector(
-                        categories = uiState.categories,
-                        selectedCategory = uiState.selectedCategory,
-                        onCategorySelected = onCategorySelected
-                    )
-                }
-
-                // Featured Campaigns Title
-                item {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            if (uiState.selectedCategory == "All") "Featured Campaigns" else "${uiState.selectedCategory} Campaigns",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (uiState.isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    if (uiState.featuredCampaigns.isEmpty() && !uiState.isLoading) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
+                                Text("No campaigns found in this category.", color = MaterialTheme.colorScheme.outline)
+                            }
                         }
                     }
-                }
 
-                // Campaign List
-                items(uiState.featuredCampaigns, key = { it.id }) { campaign ->
-                    CampaignCard(
-                        campaign = campaign, 
-                        onClick = { onCampaignClick(campaign.id) },
-                        onDonateClick = { onDonateClick(campaign.id) },
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
-                }
-
-                if (uiState.featuredCampaigns.isEmpty() && !uiState.isLoading) {
+                    // Volunteer CTA Section
                     item {
-                        Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
-                            Text("No campaigns found in this category.", color = MaterialTheme.colorScheme.outline)
-                        }
+                        VolunteerCTASection(onVolunteerClick = onVolunteerClick)
                     }
-                }
 
-                // Volunteer CTA Section
-                item {
-                    VolunteerCTASection(onVolunteerClick = onVolunteerClick)
-                }
+                    // Transparency/Trust Section
+                    item {
+                        TransparencySection(isTablet)
+                    }
 
-                // Transparency/Trust Section
-                item {
-                    TransparencySection()
-                }
-
-                // Footer CTA
-                item {
-                    FooterSection(onLoginClick)
+                    // Footer CTA
+                    item {
+                        FooterSection(onLoginClick)
+                    }
                 }
             }
         }
@@ -267,7 +336,7 @@ private fun VolunteerCTASection(onVolunteerClick: () -> Unit) {
 }
 
 @Composable
-private fun HeroCarousel(images: List<String>) {
+private fun HeroCarousel(images: List<String>, isTablet: Boolean) {
     val pagerState = rememberPagerState(pageCount = { images.size })
     val scope = rememberCoroutineScope()
 
@@ -283,7 +352,7 @@ private fun HeroCarousel(images: List<String>) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp)
+            .height(if (isTablet) 450.dp else 300.dp)
     ) {
         HorizontalPager(
             state = pagerState,
@@ -538,30 +607,67 @@ private fun CampaignCard(
 }
 
 @Composable
-private fun TransparencySection() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        Text(
-            "Built on Trust",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        
-        TransparencyItem(
-            icon = Icons.Default.Public,
-            title = "Open-Source Impact",
-            description = "Every shilling is tracked and reported directly to our public ledger."
-        )
-        
-        TransparencyItem(
-            icon = Icons.Default.ArrowForward,
-            title = "Community Verified",
-            description = "Project updates are verified by local community leaders and GPS tagging."
-        )
+private fun TransparencySection(isTablet: Boolean) {
+    if (isTablet) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(32.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Built on Trust",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "We prioritize transparency and accountability in every project.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+            
+            Column(modifier = Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                TransparencyItem(
+                    icon = Icons.Default.Public,
+                    title = "Open-Source Impact",
+                    description = "Every shilling is tracked and reported directly to our public ledger."
+                )
+                
+                TransparencyItem(
+                    icon = Icons.Default.ArrowForward,
+                    title = "Community Verified",
+                    description = "Project updates are verified by local community leaders and GPS tagging."
+                )
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                "Built on Trust",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            
+            TransparencyItem(
+                icon = Icons.Default.Public,
+                title = "Open-Source Impact",
+                description = "Every shilling is tracked and reported directly to our public ledger."
+            )
+            
+            TransparencyItem(
+                icon = Icons.Default.ArrowForward,
+                title = "Community Verified",
+                description = "Project updates are verified by local community leaders and GPS tagging."
+            )
+        }
     }
 }
 
@@ -641,6 +747,7 @@ fun LandingDashboardScreenPreview() {
             onCampaignClick = {},
             onVolunteerClick = {},
             onDonateClick = {},
+            onLogoutClick = {},
             onCategorySelected = {}
         )
     }

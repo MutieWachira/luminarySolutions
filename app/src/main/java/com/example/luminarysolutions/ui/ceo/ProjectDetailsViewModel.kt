@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.models.Project
 import com.example.luminarysolutions.data.repository.ProjectsRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -28,6 +28,7 @@ class ProjectDetailsViewModel : ViewModel() {
     private val _projectId = MutableStateFlow<String?>(null)
     private val _isSaving = MutableStateFlow(false)
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<ProjectDetailsUiState> = _projectId
         .flatMapLatest { id ->
             if (id == null) {
@@ -42,7 +43,16 @@ class ProjectDetailsViewModel : ViewModel() {
                 ) { project, allVolunteers, allApplications, allTeamMembers, saving ->
                     if (project != null) {
                         // Filter volunteers who are assigned to this project
-                        val projectVolunteers = allVolunteers.filter { project.volunteers.contains(it.id) }
+                        // We check both the document ID and match by email with users who are assigned
+                        // This handles cases where project.volunteers contains Auth UIDs but Volunteer objects use random doc IDs
+                        val projectVolunteers = allVolunteers.filter { volunteer ->
+                            project.volunteers.contains(volunteer.id) || 
+                            allTeamMembers.any { user -> 
+                                user.email == volunteer.email && 
+                                project.volunteers.contains(user.id) &&
+                                user.role == com.example.luminarysolutions.ui.auth.UserRole.VOLUNTEER 
+                            }
+                        }
                         // Filter applications for this project
                         val projectApplications = allApplications.filter { it.projectIds.contains(project.id) }
 

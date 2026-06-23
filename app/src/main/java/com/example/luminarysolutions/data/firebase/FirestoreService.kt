@@ -1,7 +1,22 @@
 package com.example.luminarysolutions.data.firebase
 
 import android.util.Log
-import com.example.luminarysolutions.data.models.*
+import com.example.luminarysolutions.data.models.Achievement
+import com.example.luminarysolutions.data.models.Approval
+import com.example.luminarysolutions.data.models.AssigneeType
+import com.example.luminarysolutions.data.models.Document
+import com.example.luminarysolutions.data.models.Donor
+import com.example.luminarysolutions.data.models.Event
+import com.example.luminarysolutions.data.models.Expense
+import com.example.luminarysolutions.data.models.Freelance
+import com.example.luminarysolutions.data.models.Notification
+import com.example.luminarysolutions.data.models.Partner
+import com.example.luminarysolutions.data.models.Project
+import com.example.luminarysolutions.data.models.Task
+import com.example.luminarysolutions.data.models.Team
+import com.example.luminarysolutions.data.models.TeamCulture
+import com.example.luminarysolutions.data.models.User
+import com.example.luminarysolutions.data.models.Volunteer
 import com.example.luminarysolutions.ui.auth.UserRole
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
@@ -437,10 +452,24 @@ object FirestoreService {
     fun updateTaskStatus(projectId: String, taskId: String, isDone: Boolean, isFreelanceHint: Boolean? = null, onComplete: (Boolean) -> Unit) {
         val updateLogic: (DocumentSnapshot, Boolean) -> Unit = { doc, isLuminary ->
             if (doc.exists()) {
-                val tasks = if (isLuminary) mapToFreelanceUi(doc).tasks else mapToProjectUi(doc).tasks
+                val project = if (isLuminary) null else mapToProjectUi(doc)
+                val freelance = if (isLuminary) mapToFreelanceUi(doc) else null
+                val tasks = freelance?.tasks ?: project?.tasks ?: emptyList()
+                
+                val targetTask = tasks.find { it.id == taskId }
+                val wasDone = targetTask?.isDone ?: false
+                
                 val updatedTasks = tasks.map { 
                     if (it.id == taskId) it.copy(isDone = isDone) else it 
                 }
+
+                // If task was just completed (false -> true), process gamification
+                if (isDone && !wasDone && targetTask != null) {
+                    targetTask.assignedToIds.forEach { vid ->
+                        processVolunteerGamification(vid, taskCompleted = true)
+                    }
+                }
+
                 if (isLuminary) updateFreelanceTasks(projectId, updatedTasks, onComplete)
                 else updateProjectTasks(projectId, updatedTasks, onComplete)
             } else {
@@ -599,6 +628,30 @@ object FirestoreService {
         }.addOnFailureListener { onComplete(false) }
     }
 
+    /**
+     * Registers a new donor by creating both a User document and a Donor item.
+     * Uses a batch write to ensure atomicity.
+     */
+    fun registerDonor(user: User, donor: Donor, onComplete: (Boolean) -> Unit) {
+        val batch = db.batch()
+        
+        // 1. Create User document
+        batch.set(db.collection("users").document(user.id), mapFromUser(user))
+        
+        // 2. Create Donor item in Lumisphere
+        batch.set(getDonorsCollection().document(user.id), mapFromDonor(donor))
+        
+        // 3. Increment donor count (Safely handles case where summary document doesn't exist)
+        batch.set(db.collection("lumisphere").document("donors"), mapOf("count" to FieldValue.increment(1)), SetOptions.merge())
+        
+        batch.commit()
+            .addOnSuccessListener { onComplete(true) }
+            .addOnFailureListener { e ->
+                Log.e("FirestoreService", "Donor registration failed", e)
+                onComplete(false) 
+            }
+    }
+
     fun getPartners(): Flow<List<Partner>> = callbackFlow {
         val reg = getPartnersCollection().orderBy("lastContactDate", Query.Direction.DESCENDING)
             .addSnapshotListener { snp, _ -> trySend(snp?.documents?.mapNotNull { mapToPartner(it) } ?: emptyList()) }
@@ -690,7 +743,9 @@ object FirestoreService {
             "name" to volunteer.name,
             "email" to volunteer.email,
             "phoneNumber" to volunteer.phoneNumber,
-            "profileImageUrl" to volunteer.profileImageUrl
+            "profileImageUrl" to volunteer.profileImageUrl,
+            "darkModeEnabled" to volunteer.darkModeEnabled,
+            "notificationsEnabled" to volunteer.notificationsEnabled
         )
         batch.set(db.collection("users").document(volunteer.id), userUpdates, SetOptions.merge())
         
@@ -796,10 +851,21 @@ object FirestoreService {
      * Achievements & Gamification
      */
     fun getAchievements(): Flow<List<Achievement>> = callbackFlow {
-        val reg = getAchievementsCollection().addSnapshotListener { snp, _ ->
-            trySend(snp?.documents?.mapNotNull { mapToAchievement(it) } ?: emptyList())
+        val registration = getAchievementsCollection().addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                Log.e("FirestoreService", "Error listening to achievements: ${error.message}", error)
+                trySend(emptyList())
+                return@addSnapshotListener
+            }
+            if (snapshot != null) {
+                val list = snapshot.documents.mapNotNull { mapToAchievement(it) }
+                Log.d("FirestoreService", "Fetched ${list.size} achievements from Firestore")
+                trySend(list)
+            } else {
+                trySend(emptyList())
+            }
         }
-        awaitClose { reg.remove() }
+        awaitClose { registration.remove() }
     }
 
     /**
@@ -828,15 +894,23 @@ object FirestoreService {
     }
 
     fun getUnlockedAchievements(volunteerId: String): Flow<List<Achievement>> = callbackFlow {
-        getVolunteersCollection().document(volunteerId).get().addOnSuccessListener { doc ->
-            val ids = doc.get("achievements") as? List<String> ?: emptyList()
-            if (ids.isEmpty()) { trySend(emptyList()); return@addOnSuccessListener }
-            getAchievementsCollection().whereIn(com.google.firebase.firestore.FieldPath.documentId(), ids)
-                .get().addOnSuccessListener { snp ->
-                    trySend(snp.documents.mapNotNull { mapToAchievement(it) })
-                }
+        val registration = getVolunteersCollection().document(volunteerId).addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                trySend(emptyList())
+                return@addSnapshotListener
+            }
+            
+            val ids = snapshot?.get("achievements") as? List<String> ?: emptyList()
+            if (ids.isEmpty()) {
+                trySend(emptyList())
+            } else {
+                getAchievementsCollection().whereIn(com.google.firebase.firestore.FieldPath.documentId(), ids)
+                    .get().addOnSuccessListener { snp ->
+                        trySend(snp.documents.mapNotNull { mapToAchievement(it) })
+                    }
+            }
         }
-        awaitClose { }
+        awaitClose { registration.remove() }
     }
 
     /**
@@ -1058,9 +1132,9 @@ object FirestoreService {
             }
             
             transaction.set(donationRef, donationData)
-            transaction.update(summaryRef, "totalAmount", FieldValue.increment(amount.toLong()))
+            transaction.set(summaryRef, mapOf("totalAmount" to FieldValue.increment(amount.toLong())), SetOptions.merge())
             // Sync with revenue document for consistency across repositories
-            transaction.update(db.collection("lumisphere").document("revenue"), "totalAmount", FieldValue.increment(amount.toLong()))
+            transaction.set(db.collection("lumisphere").document("revenue"), mapOf("totalAmount" to FieldValue.increment(amount.toLong())), SetOptions.merge())
         }.addOnSuccessListener {
             onComplete(true)
         }.addOnFailureListener { e ->
@@ -1122,6 +1196,173 @@ object FirestoreService {
     }
 
     // =========================================================================================
+    // GAMIFICATION ENGINE (Achievements & Leveling)
+    // =========================================================================================
+
+    private val POINTS_PER_TASK = 100
+    private val POINTS_PER_LEVEL = 500
+
+    private val DEFAULT_ACHIEVEMENTS = listOf(
+        // --- Task Milestones (16 Achievements) ---
+        Achievement("task_1", "Quick Starter", "Complete your first task", "bronze", 50, "TASK_COUNT", 1),
+        Achievement("task_5", "High Five", "Complete 5 tasks", "bronze", 50, "TASK_COUNT", 5),
+        Achievement("task_10", "Reliable Worker", "Complete 10 tasks", "silver", 150, "TASK_COUNT", 10),
+        Achievement("task_15", "Busy Bee", "Complete 15 tasks", "silver", 150, "TASK_COUNT", 15),
+        Achievement("task_20", "Task Enthusiast", "Complete 20 tasks", "silver", 150, "TASK_COUNT", 20),
+        Achievement("task_25", "Quarter Century", "Complete 25 tasks", "silver", 150, "TASK_COUNT", 25),
+        Achievement("task_30", "Dirty Hands", "Complete 30 tasks", "silver", 150, "TASK_COUNT", 30),
+        Achievement("task_35", "Problem Solver", "Complete 35 tasks", "silver", 150, "TASK_COUNT", 35),
+        Achievement("task_40", "Task Veteran", "Complete 40 tasks", "gold", 500, "TASK_COUNT", 40),
+        Achievement("task_45", "Unstoppable Force", "Complete 45 tasks", "gold", 500, "TASK_COUNT", 45),
+        Achievement("task_50", "The Half Century", "Complete 50 tasks", "gold", 500, "TASK_COUNT", 50),
+        Achievement("task_60", "Task Ninja", "Complete 60 tasks", "gold", 500, "TASK_COUNT", 60),
+        Achievement("task_70", "Milestone Machine", "Complete 70 tasks", "gold", 500, "TASK_COUNT", 70),
+        Achievement("task_80", "Grand Architect", "Complete 80 tasks", "gold", 500, "TASK_COUNT", 80),
+        Achievement("task_90", "Absolute Unit", "Complete 90 tasks", "gold", 500, "TASK_COUNT", 90),
+        Achievement("task_100", "Century Club", "Complete 100 tasks", "gold", 1000, "TASK_COUNT", 100),
+
+        // --- Project Milestones (12 Achievements) ---
+        Achievement("proj_1", "The Newcomer", "Join your first project", "bronze", 50, "PROJECT_COUNT", 1),
+        Achievement("proj_2", "Double Agent", "Participate in 2 projects", "bronze", 50, "PROJECT_COUNT", 2),
+        Achievement("proj_3", "Community Pillar", "Join 3 projects", "silver", 150, "PROJECT_COUNT", 3),
+        Achievement("proj_4", "Quad Squad", "Join 4 projects", "silver", 150, "PROJECT_COUNT", 4),
+        Achievement("proj_5", "Hand in Hand", "Participate in 5 projects", "silver", 150, "PROJECT_COUNT", 5),
+        Achievement("proj_6", "Networker", "Join 6 projects", "silver", 150, "PROJECT_COUNT", 6),
+        Achievement("proj_7", "Project Pro", "Participate in 7 projects", "silver", 150, "PROJECT_COUNT", 7),
+        Achievement("proj_8", "Eight for Impact", "Join 8 projects", "gold", 500, "PROJECT_COUNT", 8),
+        Achievement("proj_9", "Cloud Nine", "Join 9 projects", "gold", 500, "PROJECT_COUNT", 9),
+        Achievement("proj_10", "Foundation Master", "Participate in 10 projects", "gold", 500, "PROJECT_COUNT", 10),
+        Achievement("proj_12", "Impact Leader", "Join 12 projects", "gold", 500, "PROJECT_COUNT", 12),
+        Achievement("proj_15", "Guardian of Change", "Participate in 15 projects", "gold", 1000, "PROJECT_COUNT", 15),
+
+        // --- Level Milestones (14 Achievements) ---
+        Achievement("lvl_2", "Ascending", "Reach Level 2", "bronze", 50, "LEVEL", 2),
+        Achievement("lvl_3", "Level Up!", "Reach Level 3", "bronze", 50, "LEVEL", 3),
+        Achievement("lvl_4", "Stepping Up", "Reach Level 4", "bronze", 50, "LEVEL", 4),
+        Achievement("lvl_5", "Rising Star", "Reach Level 5", "silver", 150, "LEVEL", 5),
+        Achievement("lvl_6", "Elite Tier", "Reach Level 6", "silver", 150, "LEVEL", 6),
+        Achievement("lvl_7", "Silver Rank", "Reach Level 7", "silver", 150, "LEVEL", 7),
+        Achievement("lvl_8", "Expert Status", "Reach Level 8", "silver", 150, "LEVEL", 8),
+        Achievement("lvl_9", "Near the Top", "Reach Level 9", "silver", 150, "LEVEL", 9),
+        Achievement("lvl_10", "Gold Standard", "Reach Level 10", "gold", 500, "LEVEL", 10),
+        Achievement("lvl_15", "Master Class", "Reach Level 15", "gold", 500, "LEVEL", 15),
+        Achievement("lvl_20", "The Professional", "Reach Level 20", "gold", 500, "LEVEL", 20),
+        Achievement("lvl_25", "Luminary Legend", "Reach Level 25", "gold", 500, "LEVEL", 25),
+        Achievement("lvl_30", "Grand Master", "Reach Level 30", "gold", 1000, "LEVEL", 30),
+        Achievement("lvl_50", "Transcendent", "Reach Level 50", "gold", 2500, "LEVEL", 50),
+
+        // --- Skills & Engagement (7 Achievements) ---
+        Achievement("skill_1", "Specialist", "List your first skill", "bronze", 50, "SKILL_COUNT", 1),
+        Achievement("skill_3", "Versatile", "List 3 unique skills", "silver", 150, "SKILL_COUNT", 3),
+        Achievement("skill_5", "Multi-Talented", "List 5 unique skills", "silver", 150, "SKILL_COUNT", 5),
+        Achievement("skill_10", "Jack of All Trades", "List 10 unique skills", "gold", 500, "SKILL_COUNT", 10),
+        Achievement("prof_pic", "Smile!", "Upload a profile picture", "bronze", 50, "PROFILE_PIC", 1),
+        Achievement("prof_bio", "Introduction", "Complete your professional bio", "bronze", 50, "PROFILE_BIO", 1),
+        Achievement("mastery", "Platinum Luminary", "Unlock all other 49 trophies", "platinum", 5000, "PLATINUM", 49)
+    )
+
+    /**
+     * Seeds the achievements collection if empty.
+     */
+    fun seedAchievements() {
+        getAchievementsCollection().limit(1).get().addOnSuccessListener { snp ->
+            if (snp.isEmpty) {
+                Log.d("FirestoreService", "Seeding ${DEFAULT_ACHIEVEMENTS.size} achievements...")
+                val batch = db.batch()
+                DEFAULT_ACHIEVEMENTS.forEach { ach ->
+                    batch.set(getAchievementsCollection().document(ach.id), mapFromAchievement(ach))
+                }
+                batch.commit()
+                    .addOnSuccessListener { Log.d("FirestoreService", "Achievements seeded successfully.") }
+                    .addOnFailureListener { e -> Log.e("FirestoreService", "Failed to seed achievements", e) }
+            } else {
+                Log.d("FirestoreService", "Achievements collection already contains data. Skipping seed.")
+            }
+        }.addOnFailureListener { e ->
+            Log.e("FirestoreService", "Error checking achievements collection for seeding", e)
+        }
+    }
+
+    /**
+     * Processes gamification updates for a volunteer.
+     * Calculated locally and synced to Firestore for immediate feedback.
+     */
+    fun processVolunteerGamification(volunteerId: String, taskCompleted: Boolean = false, projectJoined: Boolean = false) {
+        getVolunteersCollection().document(volunteerId).get().addOnSuccessListener { doc ->
+            if (!doc.exists()) return@addOnSuccessListener
+            
+            val volunteer = mapToVolunteer(doc)
+            var newPoints = volunteer.points
+            val unlockedIds = volunteer.achievements.toMutableList()
+            
+            if (taskCompleted) newPoints += POINTS_PER_TASK
+            
+            // 1. Calculate Level
+            val newLevel = (newPoints / POINTS_PER_LEVEL) + 1
+            
+            // 2. Check for New Achievements
+            getAchievementsCollection().get().addOnSuccessListener { achSnp ->
+                val allAchievements = achSnp.documents.map { mapToAchievement(it) }
+                var achievementsChanged = false
+                
+                allAchievements.forEach { ach ->
+                    if (!unlockedIds.contains(ach.id)) {
+                        val met = when (ach.criteriaType) {
+                            "TASK_COUNT" -> (newPoints / POINTS_PER_TASK) >= ach.criteriaValue
+                            "PROJECT_COUNT" -> volunteer.projectIds.size >= ach.criteriaValue
+                            "LEVEL" -> newLevel >= ach.criteriaValue
+                            "SKILL_COUNT" -> volunteer.skills.size >= ach.criteriaValue
+                            "PROFILE_PIC" -> !volunteer.profileImageUrl.isNullOrBlank()
+                            "PROFILE_BIO" -> volunteer.motivation.length > 20 // Using motivation as bio for now
+                            "PLATINUM" -> unlockedIds.size >= ach.criteriaValue
+                            else -> false
+                        }
+                        
+                        if (met) {
+                            unlockedIds.add(ach.id)
+                            newPoints += ach.pointsAwarded
+                            achievementsChanged = true
+                            
+                            // Send notification for achievement
+                            val tierLabel = when(ach.iconUrl) {
+                                "bronze" -> "🥉 Bronze"
+                                "silver" -> "🥈 Silver"
+                                "gold" -> "🥇 Gold"
+                                "platinum" -> "🏆 Platinum"
+                                else -> "Achievement"
+                            }
+                            notifyUser(volunteerId, "Trophy Unlocked: $tierLabel", "You earned: ${ach.title}", "ACHIEVEMENT")
+                        }
+                    }
+                }
+                
+                // 3. Sync to Firestore
+                val finalLevel = (newPoints / POINTS_PER_LEVEL) + 1
+                val updates = hashMapOf<String, Any>(
+                    "points" to newPoints,
+                    "level" to finalLevel,
+                    "achievements" to unlockedIds,
+                    "trophiesCount" to unlockedIds.size
+                )
+                
+                getVolunteersCollection().document(volunteerId).update(updates).addOnSuccessListener {
+                    // Update global users collection for consistency
+                    db.collection("users").document(volunteerId).update(mapOf("points" to newPoints, "level" to finalLevel))
+                }
+            }
+        }
+    }
+
+    private fun mapFromAchievement(a: Achievement) = hashMapOf(
+        "title" to a.title,
+        "description" to a.description,
+        "pointsAwarded" to a.pointsAwarded,
+        "criteriaType" to a.criteriaType,
+        "criteriaValue" to a.criteriaValue,
+        "iconUrl" to a.iconUrl
+    )
+
+    // =========================================================================================
     // MAPPING UTILITIES (Encapsulation for Security & Performance)
     // =========================================================================================
 
@@ -1139,8 +1380,7 @@ object FirestoreService {
     )
 
     private fun mapToProjectUi(doc: DocumentSnapshot): Project {
-        val rawDate = doc.get("lastUpdated")
-        val dateDisplay = when (rawDate) {
+        val dateDisplay = when (val rawDate = doc.get("lastUpdated")) {
             is Timestamp -> dateFormatter.format(rawDate.toDate())
             is String -> rawDate
             else -> "Just now"
@@ -1232,7 +1472,9 @@ object FirestoreService {
         role = com.example.luminarysolutions.ui.auth.safeValueOf(doc.getString("role")), 
         enabled = doc.getBoolean("enabled") ?: true,
         fcmToken = doc.getString("fcmToken"),
-        isTwoFactorEnabled = doc.getBoolean("isTwoFactorEnabled") ?: false
+        isTwoFactorEnabled = doc.getBoolean("isTwoFactorEnabled") ?: false,
+        darkModeEnabled = doc.getBoolean("darkModeEnabled") ?: false,
+        notificationsEnabled = doc.getBoolean("notificationsEnabled") ?: true
     )
 
     private fun mapFromUser(u: User) = hashMapOf(
@@ -1244,7 +1486,9 @@ object FirestoreService {
         "role" to u.role.name,
         "enabled" to u.enabled,
         "fcmToken" to u.fcmToken,
-        "isTwoFactorEnabled" to u.isTwoFactorEnabled
+        "isTwoFactorEnabled" to u.isTwoFactorEnabled,
+        "darkModeEnabled" to u.darkModeEnabled,
+        "notificationsEnabled" to u.notificationsEnabled
     )
 
     private fun mapToDocument(doc: DocumentSnapshot) = Document(

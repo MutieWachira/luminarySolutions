@@ -12,5 +12,7 @@ data class User(
     val role: UserRole = UserRole.TEAM,
     val enabled: Boolean = true,
     val fcmToken: String? = null,
-    val isTwoFactorEnabled: Boolean = false
+    val isTwoFactorEnabled: Boolean = false,
+    val darkModeEnabled: Boolean = false,
+    val notificationsEnabled: Boolean = true
 )

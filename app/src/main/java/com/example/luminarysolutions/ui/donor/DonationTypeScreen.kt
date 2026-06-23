@@ -1,13 +1,30 @@
 package com.example.luminarysolutions.ui.donor
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,8 +38,8 @@ import androidx.compose.ui.unit.sp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DonationTypeScreen(
+    onLogin: () -> Unit,
     onSignUp: () -> Unit,
-    onContinueGuest: () -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -77,7 +94,7 @@ fun DonationTypeScreen(
             )
             
             Text(
-                "Your contribution helps us drive sustainable impact and community empowerment. Choose how you want to proceed.",
+                "Your contribution helps us drive sustainable impact and community empowerment. To proceed, please login to your account or sign up to join our community.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -87,21 +104,21 @@ fun DonationTypeScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             Button(
-                onClick = onSignUp,
+                onClick = onLogin,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
             ) {
-                Text("Sign up to track impact", fontWeight = FontWeight.Bold)
+                Text("Login to Donate", fontWeight = FontWeight.Bold)
             }
             
             OutlinedButton(
-                onClick = onContinueGuest,
+                onClick = onSignUp,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF10B981))
             ) {
-                Text("Continue as Guest", fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                Text("Sign Up as Donor", fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
             }
             
             Spacer(modifier = Modifier.height(16.dp))
