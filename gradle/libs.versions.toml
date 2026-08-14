@@ -1,5 +1,5 @@
 [versions]
-agp = "9.2.1"
+agp = "9.3.1"
 kotlin = "2.2.10"
 coreKtx = "1.17.0"
 junit = "4.13.2"
@@ -21,7 +21,7 @@ runtime = "1.10.1"
 foundationVersion = "1.10.1"
 uiGraphics = "1.10.1"
 foundationLayoutVersion = "1.10.1"
-hilt = "2.51"
+hilt = "2.60.1"
 uiTestJunit4 = "1.10.1"
 playServicesCoroutines = "1.10.1"
 cameraCore = "1.5.3"
@@ -29,6 +29,7 @@ identityJvm = "202411.1"
 coil = "2.6.0"
 uiVersion = "1.10.6"
 androidxFoundation = "1.11.0"
+stripe = "20.51.0"
 
 [libraries]
 androidx-compose-material-icons = {group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIcons"}
@@ -65,13 +66,14 @@ firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-functions = { group = "com.google.firebase", name = "firebase-functions" }
 firebase-storage = { group = "com.google.firebase", name = "firebase-storage" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+firebase-appcheck-debug = { group = "com.google.firebase", name = "firebase-appcheck-debug" }
 play-services-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "playServicesCoroutines" }
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
 identity-jvm = { group = "com.android.identity", name = "identity-jvm", version.ref = "identityJvm" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 ui = { group = "androidx.compose.ui", name = "ui", version.ref = "uiVersion" }
 foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "androidxFoundation" }
-
+stripe-android = { group = "com.stripe", name = "stripe-android", version.ref = "stripe" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

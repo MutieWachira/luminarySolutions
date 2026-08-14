@@ -5,8 +5,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -14,6 +14,11 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.luminarysolutions.data.repository.AuthStatus
 import com.example.luminarysolutions.ui.AuthViewModel
+import com.example.luminarysolutions.ui.admin.AdminMainScreen
+import com.example.luminarysolutions.ui.admin.AuditLogsScreen
+import com.example.luminarysolutions.ui.admin.RolesScreen
+import com.example.luminarysolutions.ui.admin.SystemSettingsScreen
+import com.example.luminarysolutions.ui.admin.UserManagementScreen
 import com.example.luminarysolutions.ui.auth.UserRole
 import com.example.luminarysolutions.ui.ceo.ApprovalsScreen
 import com.example.luminarysolutions.ui.ceo.BeneficiariesScreen
@@ -33,6 +38,10 @@ import com.example.luminarysolutions.ui.ceo.ProjectsScreen
 import com.example.luminarysolutions.ui.ceo.ReportsScreen
 import com.example.luminarysolutions.ui.ceo.TeamManagementScreen
 import com.example.luminarysolutions.ui.ceo.VolunteerDetailsScreen
+import com.example.luminarysolutions.ui.client.ClientDashboardScreen
+import com.example.luminarysolutions.ui.client.ClientProfileScreen
+import com.example.luminarysolutions.ui.client.ClientServiceDetailsScreen
+import com.example.luminarysolutions.ui.client.FreelanceServicesScreen
 import com.example.luminarysolutions.ui.dashboard.LandingDashboardScreen
 import com.example.luminarysolutions.ui.donor.CampaignDetailsScreen
 import com.example.luminarysolutions.ui.donor.CampaignsScreen
@@ -43,12 +52,8 @@ import com.example.luminarysolutions.ui.donor.DonorMainScreen
 import com.example.luminarysolutions.ui.donor.DonorSignUpScreen
 import com.example.luminarysolutions.ui.donor.ImpactReportsScreen
 import com.example.luminarysolutions.ui.donor.PaymentSelectionScreen
-import com.example.luminarysolutions.ui.itadmin.AuditLogsScreen
 import com.example.luminarysolutions.ui.itadmin.ITAdminDashboardScreen
 import com.example.luminarysolutions.ui.itadmin.RoleDetailsScreen
-import com.example.luminarysolutions.ui.itadmin.RolesScreen
-import com.example.luminarysolutions.ui.itadmin.SystemSettingsScreen
-import com.example.luminarysolutions.ui.itadmin.UsersScreen
 import com.example.luminarysolutions.ui.login.LoginScreen
 import com.example.luminarysolutions.ui.login.LoginViewModel
 import com.example.luminarysolutions.ui.team.TeamDashboardScreen
@@ -59,8 +64,8 @@ import com.example.luminarysolutions.ui.volunteer.VolunteerSignUpScreen
 @Composable
 fun AppNavHost(
     modifier: Modifier = Modifier,
-    loginViewModel: LoginViewModel = viewModel(),
-    authViewModel: AuthViewModel = viewModel()
+    loginViewModel: LoginViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
     val authStatus by authViewModel.authStatus.collectAsStateWithLifecycle()
@@ -79,10 +84,12 @@ fun AppNavHost(
                     val status = authStatus as AuthStatus.Authenticated
                     val destination = when (status.role) {
                         UserRole.CEO -> Screen.CEODashboard.route
-                        UserRole.ADMIN -> Screen.ITAdminDashboard.route
+                        UserRole.ADMIN -> Screen.AdminMain.route
+                        UserRole.IT_ADMIN -> Screen.ITAdminDashboard.route
                         UserRole.VOLUNTEER -> Screen.VolunteerDashboard.route
                         UserRole.DONOR -> Screen.DonorDashboard.route
                         UserRole.TEAM -> Screen.TeamDashboard.route
+                        UserRole.CLIENT -> Screen.ClientDashboard.route
                         else -> null
                     }
                     if (destination != null) {
@@ -94,7 +101,7 @@ fun AppNavHost(
             }
 
             LandingDashboardScreen(
-                onLoginClick = { navController.navigate(Screen.Login.route) },
+                onLoginClick = { navController.navigate(Screen.Login.createRoute()) },
                 onLogoutClick = {
                     authViewModel.signOut()
                     navController.navigate(Screen.PublicDashboard.route) {
@@ -123,21 +130,22 @@ fun AppNavHost(
             })
         ) { backStackEntry ->
             val returnTo = backStackEntry.arguments?.getString("returnTo")
-            val loginRole by loginViewModel.role.collectAsStateWithLifecycle()
 
             LoginScreen(
-                onLoginSuccess = {
-                    if (returnTo != null) {
+                onLoginSuccess = { role ->
+                    if (returnTo != null && returnTo != "{returnTo}") {
                         navController.navigate(returnTo) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
                     } else {
-                        val destination = when (loginRole) {
+                        val destination = when (role) {
                             UserRole.CEO -> Screen.CEODashboard.route
-                            UserRole.ADMIN -> Screen.ITAdminDashboard.route
+                            UserRole.ADMIN -> Screen.AdminMain.route
+                            UserRole.IT_ADMIN -> Screen.ITAdminDashboard.route
                             UserRole.VOLUNTEER -> Screen.VolunteerDashboard.route
                             UserRole.DONOR -> Screen.DonorDashboard.route
                             UserRole.TEAM -> Screen.TeamDashboard.route
+                            UserRole.CLIENT -> Screen.ClientDashboard.route
                             else -> Screen.PublicDashboard.route
                         }
                         navController.navigate(destination) {
@@ -246,9 +254,8 @@ fun AppNavHost(
             )
         }
         composable(Screen.Users.route) {
-            UsersScreen (
-                navController = navController,
-                role = UserRole.ADMIN
+            UserManagementScreen(
+                navController = navController
             )
         }
         composable(Screen.Roles.route){ RolesScreen(navController) }
@@ -263,6 +270,16 @@ fun AppNavHost(
         composable(Screen.AuditLogs.route){ AuditLogsScreen(navController) }
         composable(Screen.SystemSettings.route){ SystemSettingsScreen(navController) }
 
+        // Admin Module
+        composable(Screen.AdminMain.route) {
+            AdminMainScreen(parentNavController = navController)
+        }
+        
+        // We can optionally use the new UserManagementScreen for the IT Admin's Users route too
+        // but for now let's just make sure it's accessible.
+        // If we want ADMIN to use a different user management screen than IT_ADMIN:
+        // (But Screen.Users.route is "it_users", maybe we should use it for both if it's better)
+
         //volunteer module routes
         composable(Screen.VolunteerDashboard.route) { VolunteerMainScreen(navController) }
 
@@ -273,7 +290,7 @@ fun AppNavHost(
             } else {
                 DonorDashboardScreen(
                     navController = navController,
-                    onLoginClick = { navController.navigate(Screen.Login.route) }
+                    onLoginClick = { navController.navigate(Screen.Login.createRoute()) }
                 )
             }
         }
@@ -293,7 +310,7 @@ fun AppNavHost(
             // For simplicity, we'll let TeamSettingsScreen handle its own data if needed, 
             // but here we can pass it if we have a shared VM.
             // Using a simple approach for now.
-            val teamVm: com.example.luminarysolutions.ui.team.TeamDashboardViewModel = viewModel()
+            val teamVm: com.example.luminarysolutions.ui.team.TeamDashboardViewModel = hiltViewModel()
             val uiState by teamVm.uiState.collectAsState()
             
             com.example.luminarysolutions.ui.team.TeamSettingsScreen(
@@ -351,6 +368,27 @@ fun AppNavHost(
 
         composable(Screen.DonorSignUp.route) {
             DonorSignUpScreen(navController)
+        }
+
+        // Client Module Routes
+        composable(Screen.ClientDashboard.route) {
+            ClientDashboardScreen(navController)
+        }
+
+        composable(Screen.ClientFreelanceServices.route) {
+            FreelanceServicesScreen(navController)
+        }
+
+        composable(
+            route = Screen.ClientServiceDetails.route,
+            arguments = listOf(navArgument("serviceId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val serviceId = backStackEntry.arguments?.getString("serviceId") ?: ""
+            ClientServiceDetailsScreen(serviceId = serviceId, navController = navController)
+        }
+
+        composable(Screen.ClientProfile.route) {
+            ClientProfileScreen(navController)
         }
 
         composable(

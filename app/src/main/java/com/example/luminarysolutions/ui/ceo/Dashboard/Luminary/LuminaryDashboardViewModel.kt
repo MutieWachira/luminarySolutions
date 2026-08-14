@@ -3,15 +3,25 @@ package com.example.luminarysolutions.ui.ceo
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.luminarysolutions.data.firebase.lumOverviewDashboardStats
-import com.example.luminarysolutions.data.models.*
+import com.example.luminarysolutions.data.firebase.LumOverviewDashboardStats
+import com.example.luminarysolutions.data.models.Document
+import com.example.luminarysolutions.data.models.Freelance
+import com.example.luminarysolutions.data.models.Team
+import com.example.luminarysolutions.data.models.TeamCulture
 import com.example.luminarysolutions.data.repository.DashboardRepository
-import kotlinx.coroutines.flow.*
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import javax.inject.Inject
 
 data class LuminaryUiState(
-    val stats: lumOverviewDashboardStats = lumOverviewDashboardStats(),
+    val stats: LumOverviewDashboardStats = LumOverviewDashboardStats(),
     val projects: List<Freelance> = emptyList(),
     val teams: List<Team> = emptyList(),
     val culture: TeamCulture = TeamCulture(),
@@ -28,8 +38,10 @@ data class LuminaryUiState(
 /**
  * LuminaryDashboardViewModel: Specialized ViewModel for Business Operations.
  */
-class LuminaryDashboardViewModel : ViewModel() {
-    private val repository = DashboardRepository()
+@HiltViewModel
+class LuminaryDashboardViewModel @Inject constructor(
+    private val repository: DashboardRepository
+) : ViewModel() {
 
     private val _selectedYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
     private val _searchQuery = MutableStateFlow("")
@@ -53,7 +65,7 @@ class LuminaryDashboardViewModel : ViewModel() {
         _message,
         _isError
     ) { args ->
-        val stats = args[0] as lumOverviewDashboardStats
+        val stats = args[0] as LumOverviewDashboardStats
         val rawProjects = args[1] as List<Freelance>
         val teams = args[2] as List<Team>
         val culture = args[3] as TeamCulture
@@ -103,30 +115,31 @@ class LuminaryDashboardViewModel : ViewModel() {
             val finalProject = freelance.imageUrl?.takeIf { it.startsWith("content://") }?.let {
                 freelance.copy(imageUrl = repository.uploadImage(Uri.parse(it)))
             } ?: freelance
-            repository.addLuminaryProject(finalProject) {
+            repository.addLuminaryProject(finalProject).onSuccess {
                 _isSaving.value = false
-                if (it) {
-                    _message.value = "Project added successfully."
-                    _isError.value = false
-                } else {
-                    _message.value = "Failed to add project."
-                    _isError.value = true
-                }
-                onComplete(it)
+                _message.value = "Project added successfully."
+                _isError.value = false
+                onComplete(true)
+            }.onFailure {
+                _isSaving.value = false
+                _message.value = "Failed to add project."
+                _isError.value = true
+                onComplete(false)
             }
         }
     }
 
     fun deleteProject(id: String, onComplete: (Boolean) -> Unit) {
-        repository.deleteLuminaryProject(id) {
-            if (it) {
+        viewModelScope.launch {
+            repository.deleteLuminaryProject(id).onSuccess {
                 _message.value = "Project deleted."
                 _isError.value = false
-            } else {
+                onComplete(true)
+            }.onFailure {
                 _message.value = "Failed to delete project."
                 _isError.value = true
+                onComplete(false)
             }
-            onComplete(it)
         }
     }
 
@@ -136,14 +149,14 @@ class LuminaryDashboardViewModel : ViewModel() {
             val finalTeam = team.imageUrl?.takeIf { it.startsWith("content://") }?.let {
                 team.copy(imageUrl = repository.uploadImage(Uri.parse(it)))
             } ?: team
-            val result = repository.addTeamMember(finalTeam)
-            _isSaving.value = false
-            if (result.isSuccess) {
+            repository.addTeamMember(finalTeam).onSuccess {
+                _isSaving.value = false
                 _message.value = "Team member added. Credentials sent to ${team.email}"
                 _isError.value = false
                 onComplete(true)
-            } else {
-                val errorMsg = result.exceptionOrNull()?.message ?: ""
+            }.onFailure { e ->
+                _isSaving.value = false
+                val errorMsg = e.message ?: ""
                 _message.value = when {
                     errorMsg.contains("password", true) -> "Error: Name is too short for auto-password. Use a longer full name."
                     errorMsg.contains("already exists", true) -> "Error: This email is already registered."
@@ -158,14 +171,14 @@ class LuminaryDashboardViewModel : ViewModel() {
     fun deleteTeamMember(id: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             _isSaving.value = true
-            val result = repository.deleteTeamMember(id)
-            _isSaving.value = false
-            if (result.isSuccess) {
+            repository.deleteTeamMember(id).onSuccess {
+                _isSaving.value = false
                 _message.value = "Team member and account removed permanently."
                 _isError.value = false
                 onComplete(true)
-            } else {
-                _message.value = result.exceptionOrNull()?.message ?: "Failed to delete member"
+            }.onFailure { e ->
+                _isSaving.value = false
+                _message.value = e.message ?: "Failed to delete member"
                 _isError.value = true
                 onComplete(false)
             }
@@ -175,7 +188,11 @@ class LuminaryDashboardViewModel : ViewModel() {
     fun addDocument(doc: Document, uri: Uri?, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             val fileUrl = uri?.let { repository.uploadFile(it, doc.name) }
-            repository.addDocument(doc.copy(fileUrl = fileUrl), onComplete)
+            repository.addDocument(doc.copy(fileUrl = fileUrl)).onSuccess {
+                onComplete(true)
+            }.onFailure {
+                onComplete(false)
+            }
         }
     }
 }

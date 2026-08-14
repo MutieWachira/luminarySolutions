@@ -1,32 +1,34 @@
 package com.example.luminarysolutions.data.repository
 
-import com.example.luminarysolutions.data.firebase.FirestoreService
 import com.example.luminarysolutions.ui.donor.models.CampaignUi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Repository for landing page data.
  * Provides public metrics and campaigns for unauthenticated users.
  */
-class LandingRepository {
+@Singleton
+class LandingRepository @Inject constructor(
+    private val projectRepository: ProjectRepository
+) {
     
     /**
      * Fetches public campaigns.
-     * In a production app, this might use a specific 'public' collection or filter.
      */
     fun getPublicCampaigns(): Flow<List<CampaignUi>> {
-        // Fetching from FirestoreService projects and mapping to CampaignUi
-        return FirestoreService.getProjects().map { projects ->
-            projects.map { 
+        return projectRepository.getProjects().map { projectsList ->
+            projectsList.map { project ->
                 CampaignUi(
-                    id = it.id,
-                    title = it.name,
-                    category = it.category,
-                    location = it.location,
-                    goalAmount = it.budget,
-                    raisedAmount = it.spent,
-                    lastUpdate = it.lastUpdated
+                    id = project.id,
+                    title = project.name,
+                    category = project.category,
+                    location = project.location,
+                    goalAmount = project.budget,
+                    raisedAmount = project.spent,
+                    lastUpdate = project.lastUpdated
                 )
             }
         }
@@ -36,10 +38,10 @@ class LandingRepository {
      * Gets aggregate stats for the public dashboard.
      */
     fun getPublicStats(): Flow<PublicStats> {
-        return FirestoreService.getProjects().map { projects ->
+        return projectRepository.getProjects().map { projectsList ->
             PublicStats(
-                totalRaised = projects.sumOf { it.spent },
-                activeCampaigns = projects.size,
+                totalRaised = projectsList.sumOf { it.spent },
+                activeCampaigns = projectsList.size,
                 impactReached = 15000 // Mocked value for demonstration
             )
         }

@@ -3,7 +3,8 @@ package com.example.luminarysolutions.ui.ceo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.models.Project
-import com.example.luminarysolutions.data.repository.ProjectsRepository
+import com.example.luminarysolutions.data.repository.DashboardRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -12,6 +13,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class ProjectDetailsUiState(
     val project: Project? = null,
@@ -23,8 +26,10 @@ data class ProjectDetailsUiState(
     val error: String? = null
 )
 
-class ProjectDetailsViewModel : ViewModel() {
-    private val repository = ProjectsRepository()
+@HiltViewModel
+class ProjectDetailsViewModel @Inject constructor(
+    private val repository: DashboardRepository
+) : ViewModel() {
     private val _projectId = MutableStateFlow<String?>(null)
     private val _isSaving = MutableStateFlow(false)
 
@@ -40,11 +45,9 @@ class ProjectDetailsViewModel : ViewModel() {
                     repository.getVolunteerApplications(),
                     repository.getTeamMembers(),
                     _isSaving
-                ) { project, allVolunteers, allApplications, allTeamMembers, saving ->
+                ) { project: Project?, allVolunteers: List<com.example.luminarysolutions.data.models.Volunteer>, allApplications: List<com.example.luminarysolutions.data.models.Volunteer>, allTeamMembers: List<com.example.luminarysolutions.data.models.User>, saving: Boolean ->
                     if (project != null) {
                         // Filter volunteers who are assigned to this project
-                        // We check both the document ID and match by email with users who are assigned
-                        // This handles cases where project.volunteers contains Auth UIDs but Volunteer objects use random doc IDs
                         val projectVolunteers = allVolunteers.filter { volunteer ->
                             project.volunteers.contains(volunteer.id) || 
                             allTeamMembers.any { user -> 
@@ -80,8 +83,10 @@ class ProjectDetailsViewModel : ViewModel() {
     }
 
     fun toggleTaskStatus(projectId: String, taskId: String, isDone: Boolean) {
-        repository.updateTaskStatus(projectId, taskId, isDone) { success ->
-            // In a real app, maybe show a snackbar on failure
+        viewModelScope.launch {
+            repository.updateTaskStatus(projectId, taskId, isDone, false).onFailure { error ->
+                // Handle failure
+            }
         }
     }
 
@@ -110,17 +115,19 @@ class ProjectDetailsViewModel : ViewModel() {
             deadline = deadline,
             isDone = false
         )
-        repository.addTask(projectId, newTask) { success ->
-            _isSaving.value = false
-            if (success) {
+        viewModelScope.launch {
+            repository.addTaskToProject(projectId, listOf(newTask)).onSuccess {
+                _isSaving.value = false
                 assignedToIds.forEach { userId ->
-                    com.example.luminarysolutions.data.firebase.FirestoreService.notifyUser(
+                    repository.sendNotification(
                         userId = userId,
                         title = "New Task: ${project.name}",
                         message = "You have been assigned: $title",
                         type = "TASK"
                     )
                 }
+            }.onFailure {
+                _isSaving.value = false
             }
         }
     }
@@ -131,71 +138,58 @@ class ProjectDetailsViewModel : ViewModel() {
         val updatedTasks = currentProject.tasks.map {
             if (it.id == updatedTask.id) updatedTask else it
         }
-        repository.updateTasks(projectId, updatedTasks) { 
-            _isSaving.value = false
+        viewModelScope.launch {
+            repository.updateProject(currentProject.copy(tasks = updatedTasks)).onSuccess {
+                _isSaving.value = false
+            }.onFailure {
+                _isSaving.value = false
+            }
         }
     }
 
     fun deleteTask(projectId: String, taskId: String) {
         val currentProject = uiState.value.project ?: return
         val updatedTasks = currentProject.tasks.filter { it.id != taskId }
-        repository.updateTasks(projectId, updatedTasks) { }
+        viewModelScope.launch {
+            repository.updateProject(currentProject.copy(tasks = updatedTasks))
+        }
     }
 
     fun assignGroupLeader(projectId: String, leaderId: String) {
-        repository.assignGroupLeader(projectId, leaderId) { success ->
-            // Handle success/failure
+        viewModelScope.launch {
+            repository.assignGroupLeader(projectId, leaderId)
         }
     }
 
     fun updateTeamMembers(projectId: String, teamMemberIds: List<String>) {
-        repository.updateProjectTeamMembers(projectId, teamMemberIds) { success ->
-            // Handle success/failure
+        viewModelScope.launch {
+            repository.updateProjectTeamMembers(projectId, teamMemberIds)
         }
     }
 
     fun approveVolunteer(volunteerId: String) {
-        // High-level: Update status to 'Approved'. 
-        // A backend Cloud Function (onVolunteerStatusChange) will automatically:
-        // 1. Create the user record in the 'users' collection.
-        // 2. Send the approval email with the temporary password.
-        repository.updateVolunteerStatus(volunteerId, "Approved") { success ->
-            if (!success) {
-                android.util.Log.e("ProjectDetailsViewModel", "Failed to approve volunteer. Permission Denied?")
-            }
+        viewModelScope.launch {
+            repository.updateVolunteerStatus(volunteerId, "Approved")
         }
     }
 
     fun rejectVolunteer(volunteerId: String) {
-        // High-level: Update status to 'Rejected'.
-        // The backend trigger handles sending the rejection email.
-        repository.updateVolunteerStatus(volunteerId, "Rejected") { success ->
-            if (!success) {
-                android.util.Log.e("ProjectDetailsViewModel", "Failed to reject volunteer. Permission Denied?")
-            }
+        viewModelScope.launch {
+            repository.updateVolunteerStatus(volunteerId, "Rejected")
         }
     }
 
-    /**
-     * Deletes a volunteer from the system and removes them from the project.
-     * High-level operation for management.
-     */
     fun deleteVolunteer(projectId: String, volunteerId: String) {
-        repository.deleteVolunteer(volunteerId) { success ->
-            if (success) {
-                repository.removeVolunteerFromProject(projectId, volunteerId) {
-                    // Handled via Flow
-                }
+        viewModelScope.launch {
+            repository.deleteVolunteer(volunteerId).onSuccess {
+                repository.removeVolunteerFromProject(projectId, volunteerId)
             }
         }
     }
 
-    /**
-     * Updates volunteer details.
-     */
     fun updateVolunteer(volunteer: com.example.luminarysolutions.data.models.Volunteer) {
-        repository.updateVolunteer(volunteer) {
-            // Handled via Flow
+        viewModelScope.launch {
+            repository.updateVolunteer(volunteer)
         }
     }
 }

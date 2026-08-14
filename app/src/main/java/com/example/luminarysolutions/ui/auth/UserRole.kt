@@ -7,6 +7,7 @@ enum class UserRole {
     VOLUNTEER,
     DONOR,
     TEAM,
+    CLIENT,
     UNKNOWN
 }
 
@@ -25,6 +26,7 @@ fun safeValueOf(roleString: String?): UserRole {
         "VOLUNTEER" -> UserRole.VOLUNTEER
         "DONOR" -> UserRole.DONOR
         "TEAM" -> UserRole.TEAM
+        "CLIENT" -> UserRole.CLIENT
         else -> UserRole.UNKNOWN
     }
 }

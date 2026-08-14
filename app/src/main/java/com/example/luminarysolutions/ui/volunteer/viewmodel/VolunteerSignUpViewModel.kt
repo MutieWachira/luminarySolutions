@@ -3,13 +3,18 @@ package com.example.luminarysolutions.ui.volunteer.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.models.Volunteer
-import com.example.luminarysolutions.data.repository.ProjectsRepository
+import com.example.luminarysolutions.data.repository.UserRepository
+import com.example.luminarysolutions.data.repository.VolunteerRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class VolunteerSignUpViewModel(
-    private val repository: ProjectsRepository = ProjectsRepository()
+@HiltViewModel
+class VolunteerSignUpViewModel @Inject constructor(
+    private val userRepository: UserRepository,
+    private val volunteerRepository: VolunteerRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<VolunteerSignUpUiState>(VolunteerSignUpUiState.Idle)
@@ -37,31 +42,30 @@ class VolunteerSignUpViewModel(
         viewModelScope.launch {
             try {
                 // Step 1: Check if account already exists
-                repository.checkUserExists(email) { exists ->
+                userRepository.checkUserExistsByEmail(email).onSuccess { exists ->
                     if (exists) {
                         _uiState.value = VolunteerSignUpUiState.Error("An account with this email already exists. Please login instead.")
-                        return@checkUserExists
-                    }
+                    } else {
+                        // Step 2: Proceed with application
+                        val skillsList = skills.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        val volunteer = Volunteer(
+                            name = name,
+                            email = email,
+                            phoneNumber = phone,
+                            skills = skillsList,
+                            motivation = motivation,
+                            status = "Pending",
+                            projectIds = if (projectId != null) listOf(projectId) else emptyList()
+                        )
 
-                    // Step 2: Proceed with application
-                    val skillsList = skills.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                    val volunteer = Volunteer(
-                        name = name,
-                        email = email,
-                        phoneNumber = phone,
-                        skills = skillsList,
-                        motivation = motivation,
-                        status = "Pending",
-                        projectIds = if (projectId != null) listOf(projectId) else emptyList()
-                    )
-
-                    repository.addVolunteerApplication(volunteer) { success ->
-                        if (success) {
+                        volunteerRepository.addVolunteerApplication(volunteer).onSuccess {
                             _uiState.value = VolunteerSignUpUiState.Success
-                        } else {
+                        }.onFailure {
                             _uiState.value = VolunteerSignUpUiState.Error("Failed to submit application. Please check your connection.")
                         }
                     }
+                }.onFailure {
+                    _uiState.value = VolunteerSignUpUiState.Error("Failed to check user existence: ${it.message}")
                 }
             } catch (e: Exception) {
                 _uiState.value = VolunteerSignUpUiState.Error("An unexpected error occurred: ${e.message}")

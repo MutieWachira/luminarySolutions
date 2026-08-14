@@ -18,10 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.example.luminarysolutions.ui.navigation.AppNavHost
 import com.example.luminarysolutions.ui.theme.LuminarySolutionsTheme
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -40,6 +40,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Initialize Firebase App Check for testing (if needed, but usually automatic)
+        // Firebase.initialize(context = this) 
         
         askNotificationPermission()
         initializeFcm()
@@ -68,24 +71,9 @@ class MainActivity : ComponentActivity() {
 
     private fun initializeFcm() {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (!task.isSuccessful) {
-                Log.w("MainActivity", "Fetching FCM registration token failed", task.exception)
-                return@addOnCompleteListener
+            if (task.isSuccessful) {
+                task.result?.let { mainViewModel.updateFcmToken(it) }
             }
-
-            val token = task.result
-            Log.d("MainActivity", "FCM Token: $token")
-            updateTokenInFirestore(token)
         }
-    }
-
-    private fun updateTokenInFirestore(token: String) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        FirebaseFirestore.getInstance().collection("users").document(uid)
-            .update("fcmToken", token)
-            .addOnFailureListener {
-                // If document doesn't exist yet, we don't worry, 
-                // it will be set during user creation/sync.
-            }
     }
 }

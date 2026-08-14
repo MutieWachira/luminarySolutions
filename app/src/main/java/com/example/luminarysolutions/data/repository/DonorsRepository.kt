@@ -1,53 +1,50 @@
 package com.example.luminarysolutions.data.repository
 
-import com.example.luminarysolutions.data.firebase.FirestoreService
 import com.example.luminarysolutions.data.models.Donor
+import com.example.luminarysolutions.data.models.User
 import com.google.firebase.firestore.DocumentSnapshot
 import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Repository class for managing donor data.
  * Acts as a clean data access layer for the ViewModel, ensuring separation of concerns.
  */
-class DonorsRepository {
+@Singleton
+class DonorsRepository @Inject constructor(
+    private val financeRepository: FinanceRepository
+) {
 
     /**
      * Returns a real-time stream of all donors.
      */
-    fun getDonors(): Flow<List<Donor>> = FirestoreService.getDonors()
+    fun getDonors(): Flow<List<Donor>> = financeRepository.getDonors()
 
     /**
      * Returns a paginated stream of donors.
      */
     fun getDonorsPaginated(lastDocument: DocumentSnapshot?, pageSize: Long): Flow<Pair<List<Donor>, DocumentSnapshot?>> {
-        return FirestoreService.getDonorsPaginated(lastDocument, pageSize)
+        return financeRepository.getDonorsPaginated(lastDocument, pageSize)
     }
 
     /**
      * Adds a new donor to the system.
      */
-    fun addDonor(donor: Donor, onComplete: (Boolean) -> Unit) {
-        FirestoreService.addDonor(donor, onComplete)
-    }
+    suspend fun addDonor(donor: Donor): Result<Unit> = financeRepository.addDonor(donor)
 
     /**
      * Updates an existing donor's information.
      */
-    fun updateDonor(donor: Donor, onComplete: (Boolean) -> Unit) {
-        FirestoreService.updateDonor(donor, onComplete)
-    }
+    suspend fun updateDonor(donor: Donor): Result<Unit> = financeRepository.updateDonor(donor)
 
     /**
      * Deletes a donor from the system.
      */
-    fun deleteDonor(donorId: String, onComplete: (Boolean) -> Unit) {
-        FirestoreService.deleteDonor(donorId, onComplete)
-    }
+    suspend fun deleteDonor(donorId: String): Result<Unit> = financeRepository.deleteDonor(donorId)
 
     /**
      * Registers a new donor in the system with full user profile.
      */
-    fun registerDonor(user: com.example.luminarysolutions.data.models.User, donor: Donor, onComplete: (Boolean) -> Unit) {
-        FirestoreService.registerDonor(user, donor, onComplete)
-    }
+    suspend fun registerDonor(user: User, donor: Donor): Result<Unit> = financeRepository.registerDonor(user, donor)
 }

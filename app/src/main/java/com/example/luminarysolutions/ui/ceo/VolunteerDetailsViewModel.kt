@@ -1,14 +1,21 @@
 package com.example.luminarysolutions.ui.ceo
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.luminarysolutions.data.firebase.FirestoreService
 import com.example.luminarysolutions.data.models.Achievement
 import com.example.luminarysolutions.data.models.Project
 import com.example.luminarysolutions.data.models.Volunteer
-import com.example.luminarysolutions.data.repository.VolunteerRepository
-import kotlinx.coroutines.flow.*
+import com.example.luminarysolutions.data.repository.DashboardRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class VolunteerDetailsUiState(
     val volunteer: Volunteer? = null,
@@ -18,10 +25,13 @@ data class VolunteerDetailsUiState(
     val error: String? = null
 )
 
-class VolunteerDetailsViewModel(
-    private val volunteerId: String,
-    private val repository: VolunteerRepository = VolunteerRepository()
+@HiltViewModel
+class VolunteerDetailsViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
+    private val repository: DashboardRepository
 ) : ViewModel() {
+
+    private val volunteerId: String = checkNotNull(savedStateHandle["volunteerId"])
 
     private val _uiState = MutableStateFlow(VolunteerDetailsUiState())
     val uiState: StateFlow<VolunteerDetailsUiState> = _uiState.asStateFlow()
@@ -33,8 +43,8 @@ class VolunteerDetailsViewModel(
     private fun loadVolunteerData() {
         viewModelScope.launch {
             combine(
-                repository.getVolunteerProfile(volunteerId),
-                repository.getAssignedProjects(volunteerId),
+                repository.getVolunteerProfileFlow(volunteerId),
+                repository.getAssignedProjects(listOf(volunteerId)),
                 repository.getUnlockedAchievements(volunteerId)
             ) { volunteer, campaigns, achievements ->
                 VolunteerDetailsUiState(
@@ -53,11 +63,7 @@ class VolunteerDetailsViewModel(
 
     fun updateStatus(status: String) {
         viewModelScope.launch {
-            FirestoreService.updateVolunteerStatus(volunteerId, status) { success ->
-                if (success) {
-                    // Data will be updated via flow
-                }
-            }
+            repository.updateVolunteerStatus(volunteerId, status)
         }
     }
 }

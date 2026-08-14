@@ -56,7 +56,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.luminarysolutions.ui.volunteer.models.TaskStatus
 import com.example.luminarysolutions.ui.volunteer.models.VolunteerTaskUi
@@ -72,7 +72,7 @@ import kotlinx.coroutines.launch
 fun VolunteerTaskDetailsScreen(
     navController: NavController,
     taskId: String,
-    vm: VolunteerViewModel = viewModel()
+    vm: VolunteerViewModel = hiltViewModel()
 ) {
     LaunchedEffect(Unit) { vm.load("me") }
 

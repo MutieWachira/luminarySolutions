@@ -1,9 +1,5 @@
 package com.example.luminarysolutions.data.firebase
 
-import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.tasks.await
-
-
 
 //main dashboard stats
 data class DashboardStats(
@@ -15,7 +11,7 @@ data class DashboardStats(
 )
 
 //luminary overview dashboard stats
-data class lumOverviewDashboardStats(
+data class LumOverviewDashboardStats(
     val totalRevenue: Int = 0,
     val totalExpenses: Int = 0,
     val totalProfit: Int = 0,
@@ -25,7 +21,7 @@ data class lumOverviewDashboardStats(
 )
 
 //lumisphere overview dashboard stats
-data class lumiSphereOverviewDashboardStats(
+data class LumiSphereOverviewDashboardStats(
     val totalDonations: Int = 0,
     val totalSpent: Int = 0,
     val totalPrograms: Int = 0,

@@ -1,15 +1,388 @@
-const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onCall, HttpsError, onRequest} = require("firebase-functions/v2/https");
 const {onDocumentUpdated, onDocumentCreated, onDocumentDeleted} = require("firebase-functions/v2/firestore");
 const {defineString, defineSecret} = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
+const axios = require("axios");
+const moment = require("moment");
 
 admin.initializeApp();
 
-// SECRETS: Must be set using 'firebase functions:secrets:set SMTP_PASSWORD'
+// SECRETS
 const smtpPassword = defineSecret("SMTP_PASSWORD");
-// CONFIG: Can be set using 'firebase functions:config:set email.sender="your@email.com"' or just use default
+const mpesaConsumerKey = defineSecret("MPESA_CONSUMER_KEY");
+const mpesaConsumerSecret = defineSecret("MPESA_CONSUMER_SECRET");
+const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
+
+// CONFIG
 const senderEmail = defineString("SENDER_EMAIL", {default: "mutiewachira@gmail.com"});
+const mpesaShortcode = defineString("MPESA_SHORTCODE", {default: "174379"}); // Default Sandbox
+const mpesaEnv = defineString("MPESA_ENV", {default: "sandbox"}); // sandbox or production
+const callbackUrlBase = defineString("CALLBACK_URL_BASE", {default: "https://us-central1-luminarysolutions-e0272.cloudfunctions.net"});
+
+/**
+ * M-Pesa Utility: Get Access Token
+ */
+async function getMpesaAccessToken() {
+    let key = "";
+    let secret = "";
+
+    try {
+        key = mpesaConsumerKey.value();
+        secret = mpesaConsumerSecret.value();
+    } catch (e) {
+        console.warn("M-Pesa credentials not found in secrets. Checking environment variables.");
+        // In some local dev environments, secrets might not be initialized properly
+        key = process.env.MPESA_CONSUMER_KEY || "";
+        secret = process.env.MPESA_CONSUMER_SECRET || "";
+    }
+
+    if (!key || !secret) {
+        console.error("M-Pesa Consumer Key or Secret is missing.");
+        throw new Error("M-Pesa configuration error: Missing credentials. Please set MPESA_CONSUMER_KEY and MPESA_CONSUMER_SECRET secrets.");
+    }
+
+    const auth = Buffer.from(`${key}:${secret}`).toString("base64");
+    const url = mpesaEnv.value() === "production"
+        ? "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+        : "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials";
+
+    try {
+        console.log(`Fetching M-Pesa access token from: ${url}`);
+        const response = await axios.get(url, {
+            headers: { Authorization: `Basic ${auth}` }
+        });
+        return response.data.access_token;
+    } catch (error) {
+        console.error("M-Pesa Auth Error:", error.response?.data || error.message);
+        throw new Error("Failed to authenticate with M-Pesa. Check your consumer key and secret.");
+    }
+}
+
+/**
+ * CALLABLE: Initiate STK Push
+ * Triggers the M-Pesa PIN prompt on the user's phone.
+ */
+exports.initiateStkPush = onCall({
+    secrets: [mpesaConsumerKey, mpesaConsumerSecret],
+    enforceAppCheck: false
+}, async (request) => {
+    const { amount, phoneNumber, userId, reference } = request.data;
+
+    if (!amount || !phoneNumber) {
+        throw new HttpsError("invalid-argument", "Amount and Phone Number are required.");
+    }
+
+    // Format phone number to 254XXXXXXXXX (12 digits)
+    let formattedPhone = phoneNumber.replace(/\D/g, "");
+    if (formattedPhone.startsWith("0")) {
+        formattedPhone = "254" + formattedPhone.substring(1);
+    } else if (formattedPhone.startsWith("+")) {
+        formattedPhone = formattedPhone.substring(1);
+    }
+
+    if (!formattedPhone.startsWith("254")) {
+        formattedPhone = "254" + formattedPhone;
+    }
+
+    if (formattedPhone.length !== 12) {
+        throw new HttpsError("invalid-argument", "Invalid phone number format. Expected 2547XXXXXXXX.");
+    }
+
+    const timestamp = moment().format("YYYYMMDDHHmmss");
+    const shortcode = mpesaShortcode.value();
+
+    let passkey = "";
+    if (mpesaEnv.value() === "sandbox") {
+        console.log("Using default Safaricom Sandbox passkey.");
+        passkey = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919";
+    }
+
+    if (!passkey) {
+        console.error("M-Pesa Passkey is missing. Cannot generate password.");
+        throw new HttpsError("failed-precondition", "M-Pesa Passkey is not configured. Production requires a secret passkey.");
+    }
+
+    const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString("base64");
+
+    const accessToken = await getMpesaAccessToken();
+    const baseUrl = mpesaEnv.value() === "production"
+        ? "https://api.safaricom.co.ke"
+        : "https://sandbox.safaricom.co.ke";
+
+    const url = `${baseUrl}/mpesa/stkpush/v1/processrequest`;
+
+    // Point to our mpesaCallback HTTP function.
+    let callbackUrl = callbackUrlBase.value();
+    if (!callbackUrl.includes("a.run.app") && !callbackUrl.endsWith("mpesaCallback")) {
+        callbackUrl = `${callbackUrl}/mpesaCallback`;
+    }
+
+    // Safaricom Limits: AccountReference (12 chars), TransactionDesc (20 chars)
+    const safeReference = (reference || "Donation").substring(0, 12).trim();
+    const safeDesc = "Luminary Payment".substring(0, 20);
+
+    const payload = {
+        BusinessShortCode: shortcode,
+        Password: password,
+        Timestamp: timestamp,
+        TransactionType: mpesaEnv.value() === "production" ? "CustomerPayBillOnline" : "CustomerPayBillOnline",
+        Amount: Math.round(amount),
+        PartyA: formattedPhone,
+        PartyB: shortcode,
+        PhoneNumber: formattedPhone,
+        CallBackURL: callbackUrl,
+        AccountReference: safeReference,
+        TransactionDesc: safeDesc
+    };
+
+    try {
+        console.log(`[STK Push] Initiating for ${formattedPhone}, Amount: ${amount}, Ref: ${safeReference}`);
+        // Do not log the full payload to avoid leaking the base64 password in logs
+        const response = await axios.post(url, payload, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        const resData = response.data;
+        console.log("[STK Push] Safaricom Response:", JSON.stringify(resData));
+
+        if (resData.ResponseCode !== "0") {
+            throw new Error(resData.ResponseDescription || "Safaricom rejected the request");
+        }
+
+        const transactionId = resData.CheckoutRequestID;
+
+        // Store transaction attempt in Firestore for tracking
+        await admin.firestore().collection("payments").doc(transactionId).set({
+            userId: userId || "anonymous",
+            amount: amount,
+            phoneNumber: formattedPhone,
+            status: "Pending",
+            checkoutRequestId: transactionId,
+            merchantRequestId: resData.MerchantRequestID,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            reference: safeReference
+        });
+
+        return {
+            success: true,
+            checkoutRequestId: transactionId,
+            customerMessage: resData.CustomerMessage || "Request accepted for processing"
+        };
+    } catch (error) {
+        const errorData = error.response?.data || error.message;
+        console.error("STK Push Error:", JSON.stringify(errorData));
+        throw new HttpsError("internal", error.response?.data?.errorMessage || error.message || "STK Push initiation failed");
+    }
+});
+
+/**
+ * CALLABLE: Query STK Push Status
+ * Manually check the status of a transaction if the callback is delayed.
+ */
+exports.queryStkStatus = onCall({
+    secrets: [mpesaConsumerKey, mpesaConsumerSecret],
+    enforceAppCheck: false
+}, async (request) => {
+    const { checkoutRequestId } = request.data;
+
+    if (!checkoutRequestId) {
+        throw new HttpsError("invalid-argument", "CheckoutRequestID is required.");
+    }
+
+    const timestamp = moment().format("YYYYMMDDHHmmss");
+    const shortcode = mpesaShortcode.value();
+
+    let passkey = "";
+    if (mpesaEnv.value() === "sandbox") {
+        passkey = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919";
+    }
+
+    if (!passkey) {
+        throw new HttpsError("failed-precondition", "M-Pesa Passkey is not configured.");
+    }
+
+    const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString("base64");
+
+    const accessToken = await getMpesaAccessToken();
+    const baseUrl = mpesaEnv.value() === "production"
+        ? "https://api.safaricom.co.ke"
+        : "https://sandbox.safaricom.co.ke";
+
+    const url = `${baseUrl}/mpesa/stkpushquery/v1/query`;
+
+    const payload = {
+        BusinessShortCode: shortcode,
+        Password: password,
+        Timestamp: timestamp,
+        CheckoutRequestID: checkoutRequestId
+    };
+
+    try {
+        const response = await axios.post(url, payload, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        const resData = response.data;
+        console.log("M-Pesa Query Response:", JSON.stringify(resData));
+
+        if (resData.ResultCode === "0") {
+            // Update Firestore if we found a success that wasn't recorded yet
+            await admin.firestore().collection("payments").doc(checkoutRequestId).update({
+                status: "Completed",
+                resultDesc: resData.ResultDesc,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        return resData;
+    } catch (error) {
+        console.error("STK Query Error:", error.response?.data || error.message);
+        throw new HttpsError("internal", error.response?.data?.errorMessage || "Failed to query status");
+    }
+});
+
+/**
+ * CALLABLE: Process Card Payment (Production Ready)
+ * Uses PaymentIntents for better security and 3D Secure support.
+ */
+exports.processCardPayment = onCall({
+    secrets: [stripeSecretKey],
+    enforceAppCheck: false
+}, async (request) => {
+    const { amount, paymentMethodId, userId, reference } = request.data;
+
+    if (!amount || !paymentMethodId) {
+        throw new HttpsError("invalid-argument", "Amount and PaymentMethod ID are required.");
+    }
+
+    console.log(`Processing PaymentIntent for user ${userId}, amount ${amount}`);
+
+    try {
+        const stripe = require("stripe")(stripeSecretKey.value());
+
+        // 1. Create and Confirm the PaymentIntent
+        // We set confirm: true to process it immediately if no extra auth (like 3DS) is needed
+        const intent = await stripe.paymentIntents.create({
+            amount: Math.round(amount * 100), // Stripe expects cents
+            currency: "kes",
+            payment_method: paymentMethodId,
+            confirm: true,
+            description: reference || "Luminary Solutions Donation",
+            automatic_payment_methods: {
+                enabled: true,
+                allow_redirects: "never"
+            },
+            metadata: {
+                userId: userId || "anonymous",
+                reference: reference || "none"
+            }
+        });
+
+        if (intent.status === "succeeded") {
+            const transactionId = intent.id;
+
+            // 2. Record in Firestore
+            await admin.firestore().collection("payments").doc(transactionId).set({
+                userId: userId || "anonymous",
+                amount: amount,
+                method: "Card",
+                status: "Completed",
+                stripeIntentId: transactionId,
+                reference: reference || "Card Donation",
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            return {
+                success: true,
+                transactionId,
+                message: "Payment processed successfully"
+            };
+        } else {
+            console.warn(`PaymentIntent status: ${intent.status}`);
+            return {
+                success: false,
+                status: intent.status,
+                message: `Payment status: ${intent.status}. Further action may be required.`
+            };
+        }
+
+    } catch (error) {
+        console.error("Stripe Payment Error:", error);
+        throw new HttpsError("internal", error.message || "Card payment failed");
+    }
+});
+
+/**
+ * HTTP: M-Pesa Callback
+ * Safaricom calls this URL after the user enters their PIN.
+ * NOTE: Ensure this function is public in Google Cloud Console (allUsers -> Cloud Functions Invoker)
+ */
+exports.mpesaCallback = onRequest({
+    cors: true,
+    maxInstances: 10
+}, async (req, res) => {
+    try {
+        console.log("M-Pesa Callback Raw Body:", JSON.stringify(req.body));
+
+        const callbackData = req.body?.Body?.stkCallback;
+        if (!callbackData) {
+            console.error("Invalid Callback Body Structure");
+            return res.status(400).send("Invalid Request");
+        }
+
+        console.log("M-Pesa Callback Received:", JSON.stringify(callbackData));
+
+        const checkoutRequestId = callbackData.CheckoutRequestID;
+        const resultCode = callbackData.ResultCode;
+        const resultDesc = callbackData.ResultDesc;
+
+        const paymentRef = admin.firestore().collection("payments").doc(checkoutRequestId);
+
+        if (resultCode === 0) {
+            // Success
+            const metadata = callbackData.CallbackMetadata?.Item;
+            if (!metadata) {
+                console.error("Missing CallbackMetadata for successful transaction");
+                await paymentRef.update({ status: "Failed", resultDesc: "Missing metadata from Safaricom" });
+                return res.status(200).send("Callback Processed with error");
+            }
+
+            const getMetaValue = (name) => metadata.find(i => i.Name === name)?.Value;
+
+            const mpesaReceiptNumber = getMetaValue("MpesaReceiptNumber");
+            const amount = getMetaValue("Amount");
+            const transactionDate = getMetaValue("TransactionDate");
+            const phoneNumber = getMetaValue("PhoneNumber");
+
+            await paymentRef.update({
+                status: "Completed",
+                mpesaReceiptNumber: mpesaReceiptNumber,
+                amount: amount, // Sync actual amount from Safaricom
+                mpesaPhoneNumber: phoneNumber,
+                transactionDate: transactionDate,
+                completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                rawCallbackData: callbackData
+            });
+
+            console.log(`[Callback] Payment successful: ${mpesaReceiptNumber} for ${amount} from ${phoneNumber}`);
+        } else {
+            // Failed/Cancelled (e.g., Code 1032 for Cancelled)
+            console.log(`Payment failed/cancelled. Code: ${resultCode}, Desc: ${resultDesc}`);
+            await paymentRef.update({
+                status: "Failed",
+                resultCode: resultCode,
+                resultDesc: resultDesc,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        return res.status(200).send("Callback Processed");
+    } catch (error) {
+        console.error("Error processing M-Pesa callback:", error);
+        return res.status(500).send("Internal Server Error");
+    }
+});
 
 /**
  * Core Email Sending Logic
@@ -401,7 +774,10 @@ exports.onVolunteerDeleted = onDocumentDeleted({
  * CALLABLE FUNCTIONS (Manual tools)
  */
 
-exports.testSmtpConnection = onCall({secrets: [smtpPassword]}, async (request) => {
+exports.testSmtpConnection = onCall({
+    secrets: [smtpPassword],
+    enforceAppCheck: false
+}, async (request) => {
     // V2 functions data is in request.data, but handles empty calls too
     const user = senderEmail.value();
     const pass = smtpPassword.value();
@@ -435,12 +811,38 @@ exports.testSmtpConnection = onCall({secrets: [smtpPassword]}, async (request) =
     }
 });
 
-exports.sendVolunteerStatusEmail = onCall({secrets: [smtpPassword]}, async (request) => {
+exports.sendVolunteerStatusEmail = onCall({
+    secrets: [smtpPassword],
+    enforceAppCheck: false
+}, async (request) => {
     const { email, name, status, password } = request.data;
     try {
         await sendStatusEmail(email, name, status, password);
         return { success: true };
     } catch (error) {
         throw new HttpsError('internal', error.message);
+    }
+});
+
+/**
+ * CALLABLE: Test M-Pesa Authentication
+ * Use this to verify your Consumer Key and Secret are correctly configured.
+ */
+exports.testMpesaAuth = onCall({
+    secrets: [mpesaConsumerKey, mpesaConsumerSecret],
+    enforceAppCheck: false
+}, async (request) => {
+    try {
+        console.log("[TEST] Testing M-Pesa authentication...");
+        const token = await getMpesaAccessToken();
+        console.log("[TEST] M-Pesa token fetched successfully.");
+        return {
+            success: true,
+            message: "M-Pesa Authentication Successful!",
+            env: mpesaEnv.value()
+        };
+    } catch (error) {
+        console.error("[TEST] M-Pesa Auth Test Failed:", error.message);
+        throw new HttpsError('internal', `M-Pesa Auth Failed: ${error.message}`);
     }
 });

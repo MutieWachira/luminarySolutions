@@ -56,7 +56,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.luminarysolutions.ui.donor.models.CampaignUi
@@ -74,7 +74,7 @@ import kotlinx.coroutines.delay
 fun DonorDashboardScreen(
     navController: NavController? = null,
     onLoginClick: () -> Unit = {},
-    viewModel: DonorDashboardViewModel = viewModel(),
+    viewModel: DonorDashboardViewModel = hiltViewModel(),
     isSubScreen: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -482,7 +482,9 @@ fun CampaignCard(campaign: CampaignUi, onClick: () -> Unit) {
 
                 Spacer(Modifier.height(20.dp))
                 
-                val progress = (campaign.raisedAmount.toFloat() / campaign.goalAmount.toFloat()).coerceIn(0f, 1f)
+                val progress = if (campaign.goalAmount > 0) 
+                    (campaign.raisedAmount.toFloat() / campaign.goalAmount.toFloat()).coerceIn(0f, 1f)
+                else 0f
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier.fillMaxWidth().height(10.dp).clip(CircleShape),

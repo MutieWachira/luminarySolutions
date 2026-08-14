@@ -7,7 +7,8 @@ data class Achievement(
     val iconUrl: String? = null,
     val pointsAwarded: Int = 0,
     val criteriaType: String = "", // e.g., "TASKS_COMPLETED", "HOURS_VOLUNTEERED"
-    val criteriaValue: Int = 0
+    val criteriaValue: Int = 0,
+    val role: String = "DONOR" // "DONOR" or "VOLUNTEER"
 )
 
 data class VolunteerAchievement(

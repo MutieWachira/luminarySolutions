@@ -5,23 +5,26 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.models.Donor
 import com.example.luminarysolutions.data.models.User
-import com.example.luminarysolutions.data.repository.DonorsRepository
+import com.example.luminarysolutions.data.repository.FinanceRepository
 import com.example.luminarysolutions.ui.auth.UserRole
 import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
 
 /**
  * ViewModel for Donor registration.
  * Implements MVVM pattern to handle authentication and Firestore data population.
  * Ensures production-ready practices like input validation and atomic database updates.
  */
-class DonorSignUpViewModel(
-    private val repository: DonorsRepository = DonorsRepository()
+@HiltViewModel
+class DonorSignUpViewModel @Inject constructor(
+    private val repository: FinanceRepository,
+    private val auth: FirebaseAuth
 ) : ViewModel() {
-    private val auth = FirebaseAuth.getInstance()
 
     private val _uiState = MutableStateFlow<DonorSignUpUiState>(DonorSignUpUiState.Idle)
     val uiState = _uiState.asStateFlow()
@@ -61,14 +64,10 @@ class DonorSignUpViewModel(
                 )
 
                 // 3. Save to Firestore (Atomic Batch via Repository)
-                repository.registerDonor(userProfile, donorRecord) { success ->
-                    if (success) {
-                        _uiState.value = DonorSignUpUiState.Success
-                    } else {
-                        // Rollback logic: In a real production app, you might want to delete the Auth user if Firestore fails
-                        // for simplicity here, we just show an error.
-                        _uiState.value = DonorSignUpUiState.Error("Failed to create profile. Please contact support.")
-                    }
+                repository.registerDonor(userProfile, donorRecord).onSuccess {
+                    _uiState.value = DonorSignUpUiState.Success
+                }.onFailure { error ->
+                    _uiState.value = DonorSignUpUiState.Error(error.localizedMessage ?: "Failed to create profile. Please contact support.")
                 }
             } catch (e: Exception) {
                 _uiState.value = DonorSignUpUiState.Error(e.localizedMessage ?: "Registration failed")

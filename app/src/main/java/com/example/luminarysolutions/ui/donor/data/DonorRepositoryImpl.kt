@@ -1,27 +1,32 @@
 package com.example.luminarysolutions.ui.donor.data
 
+import com.example.luminarysolutions.data.repository.FinanceRepository
+import com.example.luminarysolutions.data.repository.GamificationRepository
 import com.example.luminarysolutions.ui.donor.models.CampaignUi
 import com.example.luminarysolutions.ui.donor.models.DonationUi
 import com.example.luminarysolutions.ui.donor.models.ImpactReportUi
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import com.google.firebase.firestore.FieldValue
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import com.example.luminarysolutions.data.firebase.FirestoreService
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Locale
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Production implementation of DonorRepository using Firebase Firestore.
  * Ensures real-time updates and proper data mapping.
  */
-class DonorRepositoryImpl(
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+@Singleton
+class DonorRepositoryImpl @Inject constructor(
+    private val db: FirebaseFirestore,
+    private val financeRepository: FinanceRepository,
+    private val gamificationRepository: GamificationRepository
 ) : DonorRepository {
     private val projectsCollection = db.collection("lumisphere").document("projects").collection("items")
     private val volunteersCollection = db.collection("lumisphere").document("volunteers").collection("items")
@@ -71,6 +76,11 @@ class DonorRepositoryImpl(
     }
 
     override fun getCampaign(campaignId: String): Flow<CampaignUi?> = callbackFlow {
+        if (campaignId.isBlank()) {
+            trySend(null)
+            close()
+            return@callbackFlow
+        }
         val listener = projectsCollection.document(campaignId).addSnapshotListener { doc, error ->
             if (error != null) {
                 close(error)
@@ -97,27 +107,49 @@ class DonorRepositoryImpl(
     }
 
     override fun getMyDonations(userId: String): Flow<List<DonationUi>> = callbackFlow {
-        // Robust query for donations: removed orderBy to avoid index requirement.
-        val query = donationsCollection.whereEqualTo("donorId", userId)
+        // Robust query for donations: using index for donorId and timestamp
+        val query = donationsCollection
+            .whereEqualTo("donorId", userId)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+
+        val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
 
         val listener = query.addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    close(error)
+                    // Fallback to query without ordering if index is missing
+                    if (error.message?.contains("index") == true) {
+                        donationsCollection.whereEqualTo("donorId", userId)
+                            .addSnapshotListener { s, e ->
+                                if (e != null) {
+                                    close(e)
+                                    return@addSnapshotListener
+                                }
+                                val list = s?.documents?.mapNotNull { doc -> mapToDonationUi(doc, dateFormat) } ?: emptyList()
+                                trySend(list)
+                            }
+                    } else {
+                        close(error)
+                    }
                     return@addSnapshotListener
                 }
-                val donations = snapshot?.documents?.mapNotNull { doc ->
-                    DonationUi(
-                        id = doc.id,
-                        campaignTitle = doc.getString("campaignTitle") ?: "Donation",
-                        amount = doc.getLong("amount")?.toInt() ?: 0,
-                        status = doc.getString("status") ?: "Successful",
-                        date = doc.getString("date") ?: "Recently",
-                        receiptRef = doc.getString("receiptNo") ?: "RCP-000"
-                    )
-                } ?: emptyList()
+                val donations = snapshot?.documents?.mapNotNull { doc -> mapToDonationUi(doc, dateFormat) } ?: emptyList()
                 trySend(donations)
             }
         awaitClose { listener.remove() }
+    }
+
+    private fun mapToDonationUi(doc: DocumentSnapshot, dateFormat: SimpleDateFormat): DonationUi {
+        val timestamp = doc.getTimestamp("timestamp")
+        val dateStr = if (timestamp != null) dateFormat.format(timestamp.toDate()) else doc.getString("date") ?: "Recently"
+        
+        return DonationUi(
+            id = doc.id,
+            campaignTitle = doc.getString("campaignTitle") ?: "General Donation",
+            amount = doc.getDouble("amount")?.toInt() ?: doc.getLong("amount")?.toInt() ?: 0,
+            status = doc.getString("status") ?: "Successful",
+            date = dateStr,
+            receiptRef = doc.getString("receiptNo") ?: doc.getString("receiptRef") ?: "LUM-${doc.id.takeLast(6).uppercase()}"
+        )
     }
 
     override fun getReports(category: String?): Flow<List<ImpactReportUi>> = callbackFlow {
@@ -147,17 +179,13 @@ class DonorRepositoryImpl(
         awaitClose { listener.remove() }
     }
 
-    override suspend fun donate(userId: String, campaignId: String, amount: Int): Result<Unit> = suspendCancellableCoroutine { continuation ->
-        FirestoreService.addDonation(
+    override suspend fun donate(userId: String, campaignId: String, amount: Int): Result<Unit> {
+        return financeRepository.addDonation(
             donorId = userId,
-            amount = amount,
+            amount = amount.toDouble(),
             method = "In-App",
             projectId = campaignId,
-            details = mapOf("source" to "DonorApp"),
-            onComplete = { success ->
-                if (success) continuation.resume(Result.success(Unit))
-                else continuation.resume(Result.failure(Exception("Donation transaction failed")))
-            }
+            details = mapOf("source" to "DonorApp")
         )
     }
 
@@ -179,6 +207,10 @@ class DonorRepositoryImpl(
                 "signupDate" to FieldValue.serverTimestamp()
             ))
         }.await()
+        
+        // Award points for joining a project
+        gamificationRepository.processGamification(userId, "PROJECT_JOIN")
+
         Result.success(Unit)
     } catch (e: Exception) {
         // Fallback for document not existing yet or other errors
@@ -190,21 +222,36 @@ class DonorRepositoryImpl(
         }
     }
 
-    override suspend fun isAlreadyVolunteering(userId: String): Boolean {
-        val doc = db.collection("lumisphere").document("volunteers").collection("items").document(userId).get().await()
-        val projects = doc.get("projectIds") as? List<*>
-        return projects != null && projects.isNotEmpty()
+    override suspend fun isAlreadyVolunteering(userId: String): Boolean = try {
+        if (userId.isBlank()) false
+        else {
+            val doc = db.collection("lumisphere").document("volunteers").collection("items").document(userId).get().await()
+            val projects = doc.get("projectIds") as? List<*>
+            projects != null && projects.isNotEmpty()
+        }
+    } catch (e: Exception) {
+        false
     }
 
-    override suspend fun isVolunteeringForCampaign(userId: String, campaignId: String): Boolean {
-        val doc = db.collection("lumisphere").document("volunteers").collection("items").document(userId).get().await()
-        val projects = doc.get("projectIds") as? List<*>
-        return projects?.contains(campaignId) == true
+    override suspend fun isVolunteeringForCampaign(userId: String, campaignId: String): Boolean = try {
+        if (userId.isBlank() || campaignId.isBlank()) false
+        else {
+            val doc = db.collection("lumisphere").document("volunteers").collection("items").document(userId).get().await()
+            val projects = doc.get("projectIds") as? List<*>
+            projects?.contains(campaignId) == true
+        }
+    } catch (e: Exception) {
+        false
     }
 
-    override suspend fun isVolunteer(userId: String): Boolean {
-        val doc = db.collection("users").document(userId).get().await()
-        return doc.getString("role") == "VOLUNTEER"
+    override suspend fun isVolunteer(userId: String): Boolean = try {
+        if (userId.isBlank()) false
+        else {
+            val doc = db.collection("users").document(userId).get().await()
+            doc.getString("role") == "VOLUNTEER"
+        }
+    } catch (e: Exception) {
+        false
     }
 
     override suspend fun joinProject(userId: String, campaignId: String): Result<Unit> = volunteerSignup(userId, campaignId)

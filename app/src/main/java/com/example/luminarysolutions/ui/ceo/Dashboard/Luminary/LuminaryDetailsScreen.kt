@@ -4,27 +4,145 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.BusinessCenter
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Diversity1
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Pending
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonRemove
+import androidx.compose.material.icons.filled.PersonSearch
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.PresentToAll
+import androidx.compose.material.icons.filled.RemoveCircle
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Slideshow
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SecondaryScrollableTabRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -36,11 +154,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import com.example.luminarysolutions.data.firebase.lumOverviewDashboardStats
-import androidx.compose.runtime.collectAsState
+import com.example.luminarysolutions.data.firebase.LumOverviewDashboardStats
 import com.example.luminarysolutions.data.models.Document
 import com.example.luminarysolutions.data.models.Freelance
 import com.example.luminarysolutions.data.models.Project
@@ -50,6 +167,7 @@ import com.example.luminarysolutions.data.models.Volunteer
 import com.example.luminarysolutions.ui.auth.UserRole
 import com.example.luminarysolutions.ui.ceo.CEODashboardUiState
 import com.example.luminarysolutions.ui.ceo.CEODashboardViewModel
+import com.example.luminarysolutions.ui.common.ExecutiveNavigationBar
 import com.example.luminarysolutions.ui.navigation.Screen
 import com.example.luminarysolutions.ui.theme.LuminarySolutionsTheme
 import java.text.SimpleDateFormat
@@ -57,12 +175,11 @@ import java.util.Date
 import java.util.Locale
 
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LuminaryDetailsScreen(
     navController: NavController,
-    dashboardViewModel: CEODashboardViewModel = viewModel()
+    dashboardViewModel: CEODashboardViewModel = hiltViewModel()
 ) {
     val uiState by dashboardViewModel.uiState.collectAsState()
     val selectedYear by dashboardViewModel.selectedYear.collectAsState()
@@ -103,6 +220,7 @@ fun LuminaryDetailsScreen(
         onVolunteerSearchQueryChange = { dashboardViewModel.updateVolunteerSearchQuery(it) },
         onUpdateVolunteerStatus = { id, status -> dashboardViewModel.updateVolunteerStatus(id, status) { } },
         onDeleteVolunteer = { dashboardViewModel.deleteVolunteer(it) { } },
+        onTabSelected = { dashboardViewModel.updateLuminaryTab(it) },
         onBackClick = { navController.popBackStack() },
         onProjectClick = { projectId ->
             navController.navigate(Screen.FreelanceDetails.createRoute(projectId))
@@ -143,6 +261,7 @@ fun LuminaryDetailsContent(
     onVolunteerSearchQueryChange: (String) -> Unit,
     onUpdateVolunteerStatus: (String, String) -> Unit,
     onDeleteVolunteer: (String) -> Unit,
+    onTabSelected: (Int) -> Unit,
     onBackClick: () -> Unit,
     onProjectClick: (String) -> Unit,
     onNavigateHome: () -> Unit,
@@ -151,7 +270,7 @@ fun LuminaryDetailsContent(
     onNavigateReports: () -> Unit
 ) {
     // Local state for tab navigation within the details screen
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val selectedTabIndex = uiState.luminarySelectedTabIndex
     var showAddProjectDialog by remember { mutableStateOf(false) }
     var projectToEdit by remember { mutableStateOf<Freelance?>(null) }
     
@@ -245,35 +364,13 @@ fun LuminaryDetailsContent(
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = Color.White,
-                tonalElevation = 8.dp
-            ) {
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateHome,
-                    icon = { Icon(Icons.Default.Home, "Dashboard") },
-                    label = { Text("Home") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateProjects,
-                    icon = { Icon(Icons.Default.BusinessCenter, "Projects") },
-                    label = { Text("Projects") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateTeam,
-                    icon = { Icon(Icons.Default.Groups, "Team") },
-                    label = { Text("Team") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateReports,
-                    icon = { Icon(Icons.Default.Assessment, "Reports") },
-                    label = { Text("Reports") }
-                )
-            }
+            ExecutiveNavigationBar(
+                currentScreen = "home",
+                onNavigateToHome = onNavigateHome,
+                onNavigateToProjects = onNavigateProjects,
+                onNavigateToReports = onNavigateReports,
+                onAddClick = { showAddProjectDialog = true }
+            )
         }
     ) { padding ->
         Column(
@@ -291,7 +388,7 @@ fun LuminaryDetailsContent(
             // Tabs Row - Controlling which content to display
             LuminaryTabsRow(
                 selectedTabIndex = selectedTabIndex,
-                onTabSelected = { selectedTabIndex = it }
+                onTabSelected = onTabSelected
             )
 
             // Dynamic Content based on selected tab
@@ -333,16 +430,10 @@ fun LuminaryDetailsContent(
                         onSortOrderChange = onTeamSortOrderChange,
                         onPageSelected = onTeamPageChange
                     )
-                    6 -> VolunteersTabContent(
-                        uiState = uiState,
-                        onSearchQueryChange = onVolunteerSearchQueryChange,
-                        onUpdateStatus = onUpdateVolunteerStatus,
-                        onDeleteVolunteer = onDeleteVolunteer
-                    )
                     else -> {
                         // Placeholder for other tabs
                         Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                            Text("Content for ${listOf("Overview", "Financials", "Projects", "Performance", "Documents", "Team")[selectedTabIndex]} coming soon", color = Color.Gray)
+                            Text("Tab content coming soon", color = Color.Gray)
                         }
                     }
                 }
@@ -869,23 +960,25 @@ fun ProjectStatusMiniCard(
 fun FilterDropdown(
     text: String,
     options: List<String> = emptyList(),
-    onSelected: (String) -> Unit = {}
+    onSelected: (String) -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Box {
+    Box(modifier = modifier) {
         Surface(
             onClick = { expanded = true },
             shape = RoundedCornerShape(8.dp),
             border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
-            color = Color.White
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                 Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp), tint = Color.Gray)
             }
         }
@@ -1317,7 +1410,7 @@ fun LuminaryTabsRow(
     selectedTabIndex: Int,
     onTabSelected: (Int) -> Unit
 ) {
-    val tabs = listOf("Overview", "Financials", "Projects", "Performance", "Documents", "Team", "Volunteers")
+    val tabs = listOf("Overview", "Financials", "Projects", "Performance", "Documents", "Team")
     SecondaryScrollableTabRow(
         selectedTabIndex = selectedTabIndex,
         containerColor = Color.Transparent,
@@ -1592,7 +1685,7 @@ fun TransactionItem(title: String, category: String, date: String, amount: Strin
 
 @Composable
 fun FinancialOverviewSection(
-    stats: lumOverviewDashboardStats,
+    stats: LumOverviewDashboardStats,
     selectedYear: Int,
     onYearSelected: (Int) -> Unit
 ) {
@@ -1663,7 +1756,7 @@ fun FinancialOverviewSection(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         // Revenue Bar with proportional height
-                                        val revHeight = (monthStat.revenue / maxVal).coerceIn(0f, 1f)
+                                        val revHeight = if (maxVal > 0) (monthStat.revenue / maxVal).coerceIn(0f, 1f) else 0f
                                         Box(
                                             modifier = Modifier
                                                 .width(10.dp)
@@ -1672,7 +1765,7 @@ fun FinancialOverviewSection(
                                                 .background(Color(0xFF6366F1))
                                         )
                                         // Expenses Bar
-                                        val expHeight = (monthStat.expenses / maxVal).coerceIn(0f, 1f)
+                                        val expHeight = if (maxVal > 0) (monthStat.expenses / maxVal).coerceIn(0f, 1f) else 0f
                                         Box(
                                             modifier = Modifier
                                                 .width(10.dp)
@@ -2381,29 +2474,31 @@ fun DocumentsTabContent(
             }
         }
 
-        // Search and Actions
+        // Search Bar - Full Width
+        SearchTextField(
+            value = uiState.docSearchQuery,
+            onValueChange = onSearchQueryChange,
+            placeholder = "Search documents...",
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Actions Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            SearchTextField(
-                value = uiState.docSearchQuery,
-                onValueChange = onSearchQueryChange,
-                placeholder = "Search documents...",
-                modifier = Modifier.weight(1f)
-            )
-            
             FilterDropdown(
                 text = uiState.docCategoryFilter,
                 options = listOf("All Categories", "Reports", "Financials", "Contracts", "Presentations", "Other"),
-                onSelected = onCategoryFilterChange
+                onSelected = onCategoryFilterChange,
+                modifier = Modifier.weight(1f)
             )
             
             Button(
                 onClick = onUploadClick,
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.height(52.dp),
+                modifier = Modifier.height(44.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
@@ -4038,37 +4133,38 @@ fun LuminaryDetailsScreenPreview() {
             uiState = CEODashboardUiState(
                 isLoading = false
             ),
-            selectedYear = 2025,
+            selectedYear = 2026,
             snackbarHostState = remember { SnackbarHostState() },
-            onYearSelected = { _ -> },
+            onYearSelected = { },
             onAddProject = { _, _ -> },
-            onDeleteProject = { _ -> },
+            onDeleteProject = { },
             onUpdateProject = { _, _ -> },
-            onSearchQueryChange = { _ -> },
-            onStatusFilterChange = { _ -> },
-            onSortOrderChange = { _ -> },
-            onAddTeamMember = { _ -> },
-            onDeleteTeamMember = { _ -> },
-            onUpdateTeamMember = { _ -> },
-            onTeamSearchQueryChange = { _ -> },
-            onTeamStatusFilterChange = { _ -> },
-            onTeamSortOrderChange = { _ -> },
-            onTeamPageChange = { _ -> },
-            onDocSearchQueryChange = { _ -> },
-            onDocCategoryFilterChange = { _ -> },
-            onDocSortOrderChange = { _ -> },
-            onDocPageChange = { _ -> },
+            onSearchQueryChange = { },
+            onStatusFilterChange = { },
+            onSortOrderChange = { },
+            onAddTeamMember = { },
+            onDeleteTeamMember = { },
+            onUpdateTeamMember = { },
+            onTeamSearchQueryChange = { },
+            onTeamStatusFilterChange = { },
+            onTeamSortOrderChange = { },
+            onTeamPageChange = { },
+            onDocSearchQueryChange = { },
+            onDocCategoryFilterChange = { },
+            onDocSortOrderChange = { },
+            onDocPageChange = { },
             onAddDocument = { _, _ -> },
-            onDeleteDocument = { _ -> },
-            onVolunteerSearchQueryChange = { _ -> },
+            onDeleteDocument = { },
+            onVolunteerSearchQueryChange = { },
             onUpdateVolunteerStatus = { _, _ -> },
-            onDeleteVolunteer = { _ -> },
-            onBackClick = {},
-            onProjectClick = { _ -> },
-            onNavigateHome = {},
-            onNavigateProjects = {},
-            onNavigateTeam = {},
-            onNavigateReports = {}
+            onDeleteVolunteer = { },
+            onTabSelected = { },
+            onBackClick = { },
+            onProjectClick = { },
+            onNavigateHome = { },
+            onNavigateProjects = { },
+            onNavigateTeam = { },
+            onNavigateReports = { }
         )
     }
 }

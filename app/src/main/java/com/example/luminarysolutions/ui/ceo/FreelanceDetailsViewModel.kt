@@ -6,9 +6,17 @@ import com.example.luminarysolutions.data.models.Freelance
 import com.example.luminarysolutions.data.models.Team
 import com.example.luminarysolutions.data.models.User
 import com.example.luminarysolutions.data.repository.DashboardRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class FreelanceDetailsUiState(
     val freelance: Freelance? = null,
@@ -19,8 +27,10 @@ data class FreelanceDetailsUiState(
     val error: String? = null
 )
 
-class FreelanceDetailsViewModel : ViewModel() {
-    private val repository = DashboardRepository()
+@HiltViewModel
+class FreelanceDetailsViewModel @Inject constructor(
+    private val repository: DashboardRepository
+) : ViewModel() {
     private val _projectId = MutableStateFlow<String?>(null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -60,8 +70,8 @@ class FreelanceDetailsViewModel : ViewModel() {
     }
 
     fun updateFreelance(freelance: Freelance) {
-        repository.updateLuminaryProject(freelance) { success ->
-            // Handle result
+        viewModelScope.launch {
+            repository.updateLuminaryProject(freelance)
         }
     }
 
@@ -112,16 +122,18 @@ class FreelanceDetailsViewModel : ViewModel() {
             isDone = false
         )
         val updatedTasks = currentFreelance.tasks + newTask
-        repository.updateFreelanceTasks(currentFreelance.id, updatedTasks) { success ->
-             if (success) {
+        viewModelScope.launch {
+            repository.updateFreelanceTasks(currentFreelance.id, updatedTasks).onSuccess {
                 assignedToIds.forEach { userId ->
-                    com.example.luminarysolutions.data.firebase.FirestoreService.notifyUser(
+                    repository.sendNotification(
                         userId = userId,
                         title = "New Task: ${currentFreelance.name}",
                         message = "You have been assigned: $title. Deadline: ${java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault()).format(java.util.Date(deadline))}",
                         type = "TASK"
                     )
                 }
+            }.onFailure { error ->
+                _projectId.value = _projectId.value // Trigger reload or update error state
             }
         }
     }
@@ -131,13 +143,17 @@ class FreelanceDetailsViewModel : ViewModel() {
         val updatedTasks = currentFreelance.tasks.map {
             if (it.id == updatedTask.id) updatedTask else it
         }
-        repository.updateFreelanceTasks(currentFreelance.id, updatedTasks) { }
+        viewModelScope.launch {
+            repository.updateFreelanceTasks(currentFreelance.id, updatedTasks)
+        }
     }
 
     fun deleteTask(taskId: String) {
         val currentFreelance = uiState.value.freelance ?: return
         val updatedTasks = currentFreelance.tasks.filter { it.id != taskId }
-        repository.updateFreelanceTasks(currentFreelance.id, updatedTasks) { }
+        viewModelScope.launch {
+            repository.updateFreelanceTasks(currentFreelance.id, updatedTasks)
+        }
     }
 
     fun toggleTaskStatus(taskId: String, isDone: Boolean) {
@@ -145,8 +161,8 @@ class FreelanceDetailsViewModel : ViewModel() {
         val updatedTasks = currentFreelance.tasks.map {
             if (it.id == taskId) it.copy(isDone = isDone) else it
         }
-        repository.updateFreelanceTasks(currentFreelance.id, updatedTasks) {
-            // Updated
+        viewModelScope.launch {
+            repository.updateFreelanceTasks(currentFreelance.id, updatedTasks)
         }
     }
 }

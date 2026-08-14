@@ -2,10 +2,20 @@ package com.example.luminarysolutions.ui.ceo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.luminarysolutions.data.firebase.FirestoreService
 import com.example.luminarysolutions.data.models.Expense
-import kotlinx.coroutines.flow.*
+import com.example.luminarysolutions.data.repository.FinanceRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class ExpensesUiState(
     val expenses: List<Expense> = emptyList(),
@@ -17,14 +27,17 @@ data class ExpensesUiState(
  * ViewModel for the Expenses screen, following MVVM and Clean Architecture principles.
  * Uses a reactive approach to handle data updates and filtering.
  */
-class ExpensesViewModel : ViewModel() {
+@HiltViewModel
+class ExpensesViewModel @Inject constructor(
+    private val repository: FinanceRepository
+) : ViewModel() {
     private val _projectId = MutableStateFlow<String?>(null)
     private val _error = MutableStateFlow<String?>(null)
 
     // Reactive UI state that automatically updates when expenses or project ID change
     val uiState: StateFlow<ExpensesUiState> = _projectId
         .flatMapLatest { projectId ->
-            FirestoreService.getExpenses()
+            repository.getExpenses()
                 .map { expenses ->
                     val filteredExpenses = if (projectId != null) {
                         expenses.filter { it.projectId == projectId }
@@ -54,7 +67,6 @@ class ExpensesViewModel : ViewModel() {
 
     /**
      * Adds a new expense to Firestore.
-     * In a full production app, this would ideally go through a UseCase/Repository.
      */
     fun addExpense(category: String, account: String, amount: Int) {
         val newExpense = Expense(
@@ -64,10 +76,11 @@ class ExpensesViewModel : ViewModel() {
             projectId = _projectId.value // Associate with current project if applicable
         )
         
-        FirestoreService.addExpense(newExpense) { success ->
-            if (!success) {
-                _error.value = "Failed to record expense. Please try again."
-            }
+        viewModelScope.launch {
+            repository.addExpense(newExpense)
+                .onFailure {
+                    _error.value = "Failed to record expense. Please try again."
+                }
         }
     }
 

@@ -5,7 +5,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.models.Project
-import com.example.luminarysolutions.data.repository.ProjectsRepository
+import com.example.luminarysolutions.data.repository.DashboardRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
+import javax.inject.Inject
 
 enum class ProjectFilter { ALL, ONGOING, COMPLETED, AT_RISK }
 
@@ -22,11 +24,14 @@ data class ProjectsUiState(
     val isLoading: Boolean = true,
     val searchQuery: String = "",
     val filter: ProjectFilter = ProjectFilter.ALL,
-    val isSaving: Boolean = false
+    val isSaving: Boolean = false,
+    val error: String? = null
 )
 
-class ProjectsViewModel : ViewModel() {
-    private val repository = ProjectsRepository()
+@HiltViewModel
+class ProjectsViewModel @Inject constructor(
+    private val repository: DashboardRepository
+) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
     private val _filter = MutableStateFlow(ProjectFilter.ALL)
@@ -96,13 +101,12 @@ class ProjectsViewModel : ViewModel() {
                 lastUpdated = "Just now"
             )
             
-            repository.addProject(projectWithImage) { success ->
+            repository.addProject(projectWithImage).onSuccess {
                 _isSaving.value = false
-                if (success) {
-                    Log.d("ProjectsViewModel", "Project added successfully. URL: $sanitizedImageUrl")
-                } else {
-                    Log.e("ProjectsViewModel", "Failed to add project to Firestore")
-                }
+                Log.d("ProjectsViewModel", "Project added successfully. URL: $sanitizedImageUrl")
+            }.onFailure { error ->
+                _isSaving.value = false
+                Log.e("ProjectsViewModel", "Failed to add project: ${error.message}")
             }
         }
     }
@@ -122,25 +126,24 @@ class ProjectsViewModel : ViewModel() {
 
             val updatedProject = project.copy(imageUrl = sanitizedImageUrl, lastUpdated = "Just now")
 
-            repository.updateProject(updatedProject) { success ->
+            repository.updateProject(updatedProject).onSuccess {
                 _isSaving.value = false
-                if (success) {
-                    Log.d("ProjectsViewModel", "Project updated successfully. URL: $sanitizedImageUrl")
-                } else {
-                    Log.e("ProjectsViewModel", "Failed to update project in Firestore")
-                }
+                Log.d("ProjectsViewModel", "Project updated successfully. URL: $sanitizedImageUrl")
+            }.onFailure { error ->
+                _isSaving.value = false
+                Log.e("ProjectsViewModel", "Failed to update project: ${error.message}")
             }
         }
     }
 
     fun deleteProject(projectId: String) {
+        Log.d("ProjectsViewModel", "Initiating deletion for project ID: $projectId")
         viewModelScope.launch {
-            repository.deleteProject(projectId) { success ->
-                if (success) {
-                    Log.d("ProjectsViewModel", "Project deleted successfully")
-                } else {
-                    Log.e("ProjectsViewModel", "Failed to delete project")
-                }
+            repository.deleteProject(projectId).onSuccess {
+                Log.d("ProjectsViewModel", "Successfully deleted project: $projectId")
+                // The combine flow should automatically update the UI when Firestore emits a new snapshot
+            }.onFailure { error ->
+                Log.e("ProjectsViewModel", "Failed to delete project: $projectId. Error: ${error.message}")
             }
         }
     }

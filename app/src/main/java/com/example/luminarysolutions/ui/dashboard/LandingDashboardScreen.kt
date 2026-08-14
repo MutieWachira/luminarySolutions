@@ -62,7 +62,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.example.luminarysolutions.ui.donor.models.CampaignUi
 import kotlinx.coroutines.delay
@@ -75,7 +75,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LandingDashboardScreen(
-    viewModel: LandingDashboardViewModel = viewModel(),
+    viewModel: LandingDashboardViewModel = hiltViewModel(),
     onLoginClick: () -> Unit,
     onLogoutClick: () -> Unit = {},
     onCampaignClick: (String) -> Unit,

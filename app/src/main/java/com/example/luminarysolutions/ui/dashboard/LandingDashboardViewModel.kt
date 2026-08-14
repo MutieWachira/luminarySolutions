@@ -5,8 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.repository.AuthRepository
 import com.example.luminarysolutions.data.repository.AuthStatus
 import com.example.luminarysolutions.ui.donor.data.DonorRepository
-import com.example.luminarysolutions.ui.donor.data.DonorRepositoryImpl
 import com.example.luminarysolutions.ui.donor.models.CampaignUi
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * State representing the Landing Dashboard UI.
@@ -37,11 +38,11 @@ data class LandingDashboardUiState(
 
 /**
  * ViewModel for the Landing Dashboard.
- * Handles public data fetching and business logic for the entry screen.
  */
-class LandingDashboardViewModel(
-    private val donorRepository: DonorRepository = DonorRepositoryImpl(),
-    private val authRepository: AuthRepository = AuthRepository()
+@HiltViewModel
+class LandingDashboardViewModel @Inject constructor(
+    private val donorRepository: DonorRepository,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LandingDashboardUiState(isLoading = true))
