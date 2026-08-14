@@ -137,11 +137,13 @@ class ProjectsViewModel @Inject constructor(
     }
 
     fun deleteProject(projectId: String) {
+        Log.d("ProjectsViewModel", "Initiating deletion for project ID: $projectId")
         viewModelScope.launch {
             repository.deleteProject(projectId).onSuccess {
-                Log.d("ProjectsViewModel", "Project deleted successfully")
+                Log.d("ProjectsViewModel", "Successfully deleted project: $projectId")
+                // The combine flow should automatically update the UI when Firestore emits a new snapshot
             }.onFailure { error ->
-                Log.e("ProjectsViewModel", "Failed to delete project: ${error.message}")
+                Log.e("ProjectsViewModel", "Failed to delete project: $projectId. Error: ${error.message}")
             }
         }
     }

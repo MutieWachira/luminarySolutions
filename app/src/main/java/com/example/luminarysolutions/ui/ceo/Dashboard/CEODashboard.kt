@@ -96,6 +96,7 @@ import com.example.luminarysolutions.ui.ceo.AddEditProjectDialog
 import com.example.luminarysolutions.ui.ceo.CEODashboardUiState
 import com.example.luminarysolutions.ui.ceo.CEODashboardViewModel
 import com.example.luminarysolutions.ui.ceo.ProjectsViewModel
+import com.example.luminarysolutions.ui.common.ExecutiveNavigationBar
 import com.example.luminarysolutions.ui.login.LoginViewModel
 import com.example.luminarysolutions.ui.navigation.Screen
 import com.example.luminarysolutions.ui.payment.PaymentDialog
@@ -231,7 +232,9 @@ fun CEODashboardContent(
             )
         },
         bottomBar = {
-            ModernNavigationBar(
+            ExecutiveNavigationBar(
+                currentScreen = "home",
+                onNavigateToHome = { /* Already here */ },
                 onNavigateToProjects = onNavigateToProjects,
                 onNavigateToReports = onNavigateToReports,
                 onAddClick = onAddProjectClick

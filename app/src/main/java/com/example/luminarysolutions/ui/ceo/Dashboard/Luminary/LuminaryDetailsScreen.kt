@@ -64,7 +64,6 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.InsertDriveFile
@@ -108,8 +107,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -133,7 +130,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -171,6 +167,7 @@ import com.example.luminarysolutions.data.models.Volunteer
 import com.example.luminarysolutions.ui.auth.UserRole
 import com.example.luminarysolutions.ui.ceo.CEODashboardUiState
 import com.example.luminarysolutions.ui.ceo.CEODashboardViewModel
+import com.example.luminarysolutions.ui.common.ExecutiveNavigationBar
 import com.example.luminarysolutions.ui.navigation.Screen
 import com.example.luminarysolutions.ui.theme.LuminarySolutionsTheme
 import java.text.SimpleDateFormat
@@ -223,6 +220,7 @@ fun LuminaryDetailsScreen(
         onVolunteerSearchQueryChange = { dashboardViewModel.updateVolunteerSearchQuery(it) },
         onUpdateVolunteerStatus = { id, status -> dashboardViewModel.updateVolunteerStatus(id, status) { } },
         onDeleteVolunteer = { dashboardViewModel.deleteVolunteer(it) { } },
+        onTabSelected = { dashboardViewModel.updateLuminaryTab(it) },
         onBackClick = { navController.popBackStack() },
         onProjectClick = { projectId ->
             navController.navigate(Screen.FreelanceDetails.createRoute(projectId))
@@ -263,6 +261,7 @@ fun LuminaryDetailsContent(
     onVolunteerSearchQueryChange: (String) -> Unit,
     onUpdateVolunteerStatus: (String, String) -> Unit,
     onDeleteVolunteer: (String) -> Unit,
+    onTabSelected: (Int) -> Unit,
     onBackClick: () -> Unit,
     onProjectClick: (String) -> Unit,
     onNavigateHome: () -> Unit,
@@ -271,7 +270,7 @@ fun LuminaryDetailsContent(
     onNavigateReports: () -> Unit
 ) {
     // Local state for tab navigation within the details screen
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val selectedTabIndex = uiState.luminarySelectedTabIndex
     var showAddProjectDialog by remember { mutableStateOf(false) }
     var projectToEdit by remember { mutableStateOf<Freelance?>(null) }
     
@@ -365,35 +364,13 @@ fun LuminaryDetailsContent(
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = Color.White,
-                tonalElevation = 8.dp
-            ) {
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateHome,
-                    icon = { Icon(Icons.Default.Home, "Dashboard") },
-                    label = { Text("Home") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateProjects,
-                    icon = { Icon(Icons.Default.BusinessCenter, "Projects") },
-                    label = { Text("Projects") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateTeam,
-                    icon = { Icon(Icons.Default.Groups, "Team") },
-                    label = { Text("Team") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateReports,
-                    icon = { Icon(Icons.Default.Assessment, "Reports") },
-                    label = { Text("Reports") }
-                )
-            }
+            ExecutiveNavigationBar(
+                currentScreen = "home",
+                onNavigateToHome = onNavigateHome,
+                onNavigateToProjects = onNavigateProjects,
+                onNavigateToReports = onNavigateReports,
+                onAddClick = { showAddProjectDialog = true }
+            )
         }
     ) { padding ->
         Column(
@@ -411,7 +388,7 @@ fun LuminaryDetailsContent(
             // Tabs Row - Controlling which content to display
             LuminaryTabsRow(
                 selectedTabIndex = selectedTabIndex,
-                onTabSelected = { selectedTabIndex = it }
+                onTabSelected = onTabSelected
             )
 
             // Dynamic Content based on selected tab
@@ -453,16 +430,10 @@ fun LuminaryDetailsContent(
                         onSortOrderChange = onTeamSortOrderChange,
                         onPageSelected = onTeamPageChange
                     )
-                    6 -> VolunteersTabContent(
-                        uiState = uiState,
-                        onSearchQueryChange = onVolunteerSearchQueryChange,
-                        onUpdateStatus = onUpdateVolunteerStatus,
-                        onDeleteVolunteer = onDeleteVolunteer
-                    )
                     else -> {
                         // Placeholder for other tabs
                         Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                            Text("Content for ${listOf("Overview", "Financials", "Projects", "Performance", "Documents", "Team")[selectedTabIndex]} coming soon", color = Color.Gray)
+                            Text("Tab content coming soon", color = Color.Gray)
                         }
                     }
                 }
@@ -989,23 +960,25 @@ fun ProjectStatusMiniCard(
 fun FilterDropdown(
     text: String,
     options: List<String> = emptyList(),
-    onSelected: (String) -> Unit = {}
+    onSelected: (String) -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Box {
+    Box(modifier = modifier) {
         Surface(
             onClick = { expanded = true },
             shape = RoundedCornerShape(8.dp),
             border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
-            color = Color.White
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                 Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp), tint = Color.Gray)
             }
         }
@@ -1437,7 +1410,7 @@ fun LuminaryTabsRow(
     selectedTabIndex: Int,
     onTabSelected: (Int) -> Unit
 ) {
-    val tabs = listOf("Overview", "Financials", "Projects", "Performance", "Documents", "Team", "Volunteers")
+    val tabs = listOf("Overview", "Financials", "Projects", "Performance", "Documents", "Team")
     SecondaryScrollableTabRow(
         selectedTabIndex = selectedTabIndex,
         containerColor = Color.Transparent,
@@ -2501,29 +2474,31 @@ fun DocumentsTabContent(
             }
         }
 
-        // Search and Actions
+        // Search Bar - Full Width
+        SearchTextField(
+            value = uiState.docSearchQuery,
+            onValueChange = onSearchQueryChange,
+            placeholder = "Search documents...",
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Actions Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            SearchTextField(
-                value = uiState.docSearchQuery,
-                onValueChange = onSearchQueryChange,
-                placeholder = "Search documents...",
-                modifier = Modifier.weight(1f)
-            )
-            
             FilterDropdown(
                 text = uiState.docCategoryFilter,
                 options = listOf("All Categories", "Reports", "Financials", "Contracts", "Presentations", "Other"),
-                onSelected = onCategoryFilterChange
+                onSelected = onCategoryFilterChange,
+                modifier = Modifier.weight(1f)
             )
             
             Button(
                 onClick = onUploadClick,
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.height(52.dp),
+                modifier = Modifier.height(44.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
@@ -4158,37 +4133,38 @@ fun LuminaryDetailsScreenPreview() {
             uiState = CEODashboardUiState(
                 isLoading = false
             ),
-            selectedYear = 2025,
+            selectedYear = 2026,
             snackbarHostState = remember { SnackbarHostState() },
-            onYearSelected = { _ -> },
+            onYearSelected = { },
             onAddProject = { _, _ -> },
-            onDeleteProject = { _ -> },
+            onDeleteProject = { },
             onUpdateProject = { _, _ -> },
-            onSearchQueryChange = { _ -> },
-            onStatusFilterChange = { _ -> },
-            onSortOrderChange = { _ -> },
-            onAddTeamMember = { _ -> },
-            onDeleteTeamMember = { _ -> },
-            onUpdateTeamMember = { _ -> },
-            onTeamSearchQueryChange = { _ -> },
-            onTeamStatusFilterChange = { _ -> },
-            onTeamSortOrderChange = { _ -> },
-            onTeamPageChange = { _ -> },
-            onDocSearchQueryChange = { _ -> },
-            onDocCategoryFilterChange = { _ -> },
-            onDocSortOrderChange = { _ -> },
-            onDocPageChange = { _ -> },
+            onSearchQueryChange = { },
+            onStatusFilterChange = { },
+            onSortOrderChange = { },
+            onAddTeamMember = { },
+            onDeleteTeamMember = { },
+            onUpdateTeamMember = { },
+            onTeamSearchQueryChange = { },
+            onTeamStatusFilterChange = { },
+            onTeamSortOrderChange = { },
+            onTeamPageChange = { },
+            onDocSearchQueryChange = { },
+            onDocCategoryFilterChange = { },
+            onDocSortOrderChange = { },
+            onDocPageChange = { },
             onAddDocument = { _, _ -> },
-            onDeleteDocument = { _ -> },
-            onVolunteerSearchQueryChange = { _ -> },
+            onDeleteDocument = { },
+            onVolunteerSearchQueryChange = { },
             onUpdateVolunteerStatus = { _, _ -> },
-            onDeleteVolunteer = { _ -> },
-            onBackClick = {},
-            onProjectClick = { _ -> },
-            onNavigateHome = {},
-            onNavigateProjects = {},
-            onNavigateTeam = {},
-            onNavigateReports = {}
+            onDeleteVolunteer = { },
+            onTabSelected = { },
+            onBackClick = { },
+            onProjectClick = { },
+            onNavigateHome = { },
+            onNavigateProjects = { },
+            onNavigateTeam = { },
+            onNavigateReports = { }
         )
     }
 }

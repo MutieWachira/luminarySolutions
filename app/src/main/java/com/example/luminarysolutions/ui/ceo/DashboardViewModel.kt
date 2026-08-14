@@ -80,13 +80,19 @@ data class CEODashboardUiState(
     val programsTrend: String = "+0%",
     val isProgramsPositive: Boolean = true,
     val reachTrend: String = "+0%",
-    val isReachPositive: Boolean = true
+    val isReachPositive: Boolean = true,
+    val luminarySelectedTabIndex: Int = 0,
+    val lumiSphereSelectedTabIndex: Int = 0
 )
 
 @HiltViewModel
 class CEODashboardViewModel @Inject constructor(
     private val repository: DashboardRepository
 ) : ViewModel() {
+    companion object {
+        private const val PAGE_SIZE = 8
+    }
+
     private val _selectedYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
     val selectedYear: StateFlow<Int> = _selectedYear.asStateFlow()
 
@@ -116,6 +122,9 @@ class CEODashboardViewModel @Inject constructor(
     private val _isError = MutableStateFlow(false)
 
     private val _userName = MutableStateFlow("Executive")
+    
+    private val _luminarySelectedTabIndex = MutableStateFlow(0)
+    private val _lumiSphereSelectedTabIndex = MutableStateFlow(0)
 
     init {
         observeUserProfile()
@@ -166,7 +175,9 @@ class CEODashboardViewModel @Inject constructor(
         _isSaving,
         _message,
         _isError,
-        _userName
+        _userName,
+        _luminarySelectedTabIndex,
+        _lumiSphereSelectedTabIndex
     ) { args ->
         val generalStats = args[0] as DashboardStats
         val lumStats = args[1] as LumOverviewDashboardStats
@@ -205,6 +216,8 @@ class CEODashboardViewModel @Inject constructor(
         val message = args[30] as? String
         val isError = args[31] as Boolean
         val userName = args[32] as String
+        val lumTab = args[33] as Int
+        val lumiSphereTab = args[34] as Int
 
         // Quarterly Trend Calculation Logic
         val monthOrder = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
@@ -315,12 +328,12 @@ class CEODashboardViewModel @Inject constructor(
             teamStatusFilter = teamStatus,
             teamSortOrder = teamSort,
             teamCurrentPage = teamPage,
-            teamTotalPages = (filteredTeams.size / 10).coerceAtLeast(1),
+            teamTotalPages = ((filteredTeams.size + PAGE_SIZE - 1) / PAGE_SIZE).coerceAtLeast(1),
             docSearchQuery = docSearch,
             docCategoryFilter = docCategory,
             docSortOrder = docSort,
             docCurrentPage = docPage,
-            docTotalPages = (filteredDocs.size / 10).coerceAtLeast(1),
+            docTotalPages = ((filteredDocs.size + PAGE_SIZE - 1) / PAGE_SIZE).coerceAtLeast(1),
             docStats = allDocs.groupBy { it.category }.mapValues { it.value.size },
             totalDocsCount = allDocs.size,
             totalTeamsCount = allTeams.size,
@@ -330,9 +343,9 @@ class CEODashboardViewModel @Inject constructor(
             programStatusFilter = progStatus,
             programSortOrder = progSort,
             programCurrentPage = progPage,
-            programTotalPages = (filteredPrograms.size / 10).coerceAtLeast(1),
+            programTotalPages = ((filteredPrograms.size + PAGE_SIZE - 1) / PAGE_SIZE).coerceAtLeast(1),
             volunteers = filteredVolunteers,
-            volunteerApplications = filteredApps,
+            volunteerApplications = volunteerApps,
             volunteerSearchQuery = volunteerSearch,
             events = filteredEvents,
             eventSearchQuery = eventSearch,
@@ -343,11 +356,13 @@ class CEODashboardViewModel @Inject constructor(
             fundingTrend = fundingTrend,
             isFundingPositive = fundingTrend.startsWith("+"),
             burnTrend = burnTrend,
-            isBurnPositive = !burnTrend.startsWith("+"), // Lower burn is positive
-            programsTrend = "+2.4%", // Mocked quarterly trend
+            isBurnPositive = !burnTrend.startsWith("+"),
+            programsTrend = "+2.4%",
             isProgramsPositive = true,
-            reachTrend = "+18%", // Mocked quarterly trend
-            isReachPositive = true
+            reachTrend = "+18%",
+            isReachPositive = true,
+            luminarySelectedTabIndex = lumTab,
+            lumiSphereSelectedTabIndex = lumiSphereTab
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CEODashboardUiState())
 
@@ -371,6 +386,8 @@ class CEODashboardViewModel @Inject constructor(
     fun updateProgramPage(page: Int) { _programPage.value = page }
     fun updateVolunteerSearchQuery(query: String) { _volunteerSearchQuery.value = query }
     fun updateEventSearchQuery(query: String) { _eventSearchQuery.value = query }
+    fun updateLuminaryTab(index: Int) { _luminarySelectedTabIndex.value = index }
+    fun updateLumiSphereTab(index: Int) { _lumiSphereSelectedTabIndex.value = index }
 
     fun addLuminaryProject(freelance: Freelance, imageUri: Uri?, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
@@ -586,6 +603,7 @@ class CEODashboardViewModel @Inject constructor(
         }
     }
 
+    // Event Management
     // Event Management
     fun addEvent(event: Event, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {

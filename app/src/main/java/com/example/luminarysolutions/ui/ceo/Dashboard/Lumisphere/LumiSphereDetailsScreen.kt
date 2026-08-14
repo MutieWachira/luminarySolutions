@@ -77,7 +77,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -103,6 +102,7 @@ import com.example.luminarysolutions.ui.ceo.CEODashboardUiState
 import com.example.luminarysolutions.ui.ceo.CEODashboardViewModel
 import com.example.luminarysolutions.ui.ceo.Dashboard.Luminary.BreakdownItem
 import com.example.luminarysolutions.ui.ceo.Dashboard.Luminary.YearSelector
+import com.example.luminarysolutions.ui.common.ExecutiveNavigationBar
 import com.example.luminarysolutions.ui.navigation.Screen
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -132,6 +132,9 @@ fun LumiSphereDetailsScreen(
         onVolunteerClick = { volunteerId ->
             navController.navigate(Screen.VolunteerDetails.createRoute(volunteerId))
         },
+        onNavigateHome = { navController.navigate(Screen.CEODashboard.route) },
+        onNavigateProjects = { navController.navigate(Screen.Projects.route) },
+        onNavigateReports = { navController.navigate(Screen.Reports.route) },
         viewModel = dashboardViewModel
     )
 }
@@ -145,9 +148,12 @@ fun LumiSphereDetailsContent(
     onBackClick: () -> Unit,
     onProjectClick: (String) -> Unit,
     onVolunteerClick: (String) -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateProjects: () -> Unit,
+    onNavigateReports: () -> Unit,
     viewModel: CEODashboardViewModel
 ) {
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val selectedTabIndex = uiState.lumiSphereSelectedTabIndex
     var showAddProgramDialog by remember { mutableStateOf(false) }
     var programToEdit by remember { mutableStateOf<Project?>(null) }
     var programToDelete by remember { mutableStateOf<Project?>(null) }
@@ -302,6 +308,15 @@ fun LumiSphereDetailsContent(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
+        bottomBar = {
+            ExecutiveNavigationBar(
+                currentScreen = "home",
+                onNavigateToHome = onNavigateHome,
+                onNavigateToProjects = onNavigateProjects,
+                onNavigateToReports = onNavigateReports,
+                onAddClick = { showAddProgramDialog = true }
+            )
+        },
         floatingActionButton = {
             if (selectedTabIndex == 1) {
                 FloatingActionButton(
@@ -333,7 +348,7 @@ fun LumiSphereDetailsContent(
 
             LumiSphereTabsRow(
                 selectedTabIndex = selectedTabIndex,
-                onTabSelected = { selectedTabIndex = it }
+                onTabSelected = { viewModel.updateLumiSphereTab(it) }
             )
 
             Column(
