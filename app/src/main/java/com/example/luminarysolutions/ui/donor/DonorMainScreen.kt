@@ -3,6 +3,7 @@ package com.example.luminarysolutions.ui.donor
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -14,20 +15,21 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.luminarysolutions.ui.common.UnifiedAchievementsScreen
 import com.example.luminarysolutions.ui.donor.viewmodel.DonorViewModel
 import com.example.luminarysolutions.ui.navigation.Screen
 
 @Composable
 fun DonorMainScreen(
     parentNavController: NavController,
-    vm: DonorViewModel = viewModel()
+    vm: DonorViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
 
@@ -45,7 +47,7 @@ fun DonorMainScreen(
                 DonorDashboardScreen(
                     navController = parentNavController,
                     onLoginClick = { /* Already logged in */ },
-                    viewModel = viewModel(),
+                    viewModel = hiltViewModel(),
                     isSubScreen = true
                 )
             }
@@ -54,6 +56,9 @@ fun DonorMainScreen(
             }
             composable(Screen.DonorReports.route) {
                 ImpactReportsScreen(parentNavController, vm, isSubScreen = true)
+            }
+            composable(Screen.DonorAchievements.route) {
+                UnifiedAchievementsScreen()
             }
             composable(Screen.DonorProfile.route) {
                  DonorProfileScreen(parentNavController, vm)
@@ -72,6 +77,7 @@ fun DonorBottomBar(navController: NavHostController) {
             Triple(Screen.DonorDashboard.route, Icons.Default.Home, "Home"),
             Triple(Screen.DonorDonations.route, Icons.Default.History, "Donations"),
             Triple(Screen.DonorReports.route, Icons.Default.BarChart, "Impact"),
+            Triple(Screen.DonorAchievements.route, Icons.Default.EmojiEvents, "Trophy"),
             Triple(Screen.DonorProfile.route, Icons.Default.Person, "Profile")
         )
 

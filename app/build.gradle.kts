@@ -1,11 +1,10 @@
-import org.gradle.kotlin.dsl.implementation
-
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
+    alias(libs.plugins.hilt.android)
+    alias(libs.plugins.kotlin.kapt)
 }
 
 android {
@@ -54,6 +53,15 @@ android {
     }
 }
 
+configurations.all {
+    resolutionStrategy {
+        dependencySubstitution {
+            substitute(module("org.bouncycastle:bcprov-jdk15to18")).using(module("org.bouncycastle:bcprov-jdk18on:1.78.1"))
+            substitute(module("org.bouncycastle:bcprov-jdk15on")).using(module("org.bouncycastle:bcprov-jdk18on:1.78.1"))
+        }
+    }
+}
+
 dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(platform(libs.androidx.compose.bom))
@@ -78,6 +86,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.functions)
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.appcheck.debug)
     implementation(libs.play.services.coroutines)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.storage)
@@ -88,6 +97,12 @@ dependencies {
     implementation(libs.androidx.camera.core)
     implementation(libs.identity.jvm)
     implementation(libs.coil.compose)
+    implementation(libs.stripe.android)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

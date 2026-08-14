@@ -3,21 +3,22 @@ package com.example.luminarysolutions.ui.donor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.repository.CampaignRepository
-import com.example.luminarysolutions.data.repository.CampaignRepositoryImpl
 import com.example.luminarysolutions.ui.donor.models.CampaignUi
 import com.example.luminarysolutions.ui.donor.models.CategoryUi
 import com.example.luminarysolutions.ui.donor.models.HeroItemUi
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * UI State for the Donor Dashboard.
- * Includes statistics for social proof and impact tracking.
  */
 data class DonorDashboardUiState(
     val isLoading: Boolean = true,
@@ -36,13 +37,13 @@ data class DonorDashboardUiState(
 
 /**
  * ViewModel for the Donor Dashboard following MVVM patterns.
- * Handles data orchestration, state preservation, and pagination.
  */
-class DonorDashboardViewModel(
-    private val repository: CampaignRepository = CampaignRepositoryImpl()
+@HiltViewModel
+class DonorDashboardViewModel @Inject constructor(
+    private val repository: CampaignRepository,
+    private val auth: FirebaseAuth
 ) : ViewModel() {
 
-    private val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
     private val _uiState = MutableStateFlow(DonorDashboardUiState())
     val uiState: StateFlow<DonorDashboardUiState> = _uiState.asStateFlow()
 
@@ -63,7 +64,7 @@ class DonorDashboardViewModel(
             try {
                 _uiState.value = _uiState.value.copy(isLoading = true)
 
-                // Industry Best Practice: Parallel execution for faster load times
+                // Parallel execution for faster load times
                 val categoriesDeferred = async { repository.getCategories().first() }
                 val heroItemsDeferred = async { repository.getHeroItems().first() }
                 val statsDeferred = async { repository.getDashboardStats().first() }

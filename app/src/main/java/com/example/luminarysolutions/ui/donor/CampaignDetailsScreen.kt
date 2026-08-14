@@ -53,8 +53,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.luminarysolutions.ui.donor.viewmodel.DonorViewModel
@@ -66,7 +66,7 @@ import kotlin.math.roundToInt
 fun CampaignDetailsScreen(
     navController: NavController,
     campaignId: String,
-    vm: DonorViewModel = viewModel()
+    vm: DonorViewModel = hiltViewModel()
 ) {
     val uiState by vm.uiState.collectAsStateWithLifecycle()
     val campaignFlow = remember(campaignId) { vm.getCampaign(campaignId) }
@@ -143,7 +143,7 @@ fun CampaignDetailsScreen(
                             campaignId = campaign!!.id,
                             uiState = uiState,
                             navController = navController,
-                            onJoinClick = { vm.joinCampaign(campaign!!.id) }
+                            onJoinClick = { vm.joinProject(campaign!!.id) }
                         )
                     }
                 }
@@ -167,7 +167,7 @@ fun CampaignDetailsScreen(
                             campaignId = campaign!!.id,
                             uiState = uiState,
                             navController = navController,
-                            onJoinClick = { vm.joinCampaign(campaign!!.id) }
+                            onJoinClick = { vm.joinProject(campaign!!.id) }
                         )
                     }
                 }

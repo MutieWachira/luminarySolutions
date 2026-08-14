@@ -4,13 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.repository.AuthRepository
 import com.example.luminarysolutions.ui.auth.UserRole
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class LoginViewModel(
-    private val repository: AuthRepository = AuthRepository()
+@HiltViewModel
+class LoginViewModel @Inject constructor(
+    private val repository: AuthRepository
 ) : ViewModel() {
 
     private val _email = MutableStateFlow("")
@@ -45,7 +48,7 @@ class LoginViewModel(
             repository.signIn(email, password)
                 .onSuccess { userRole ->
                     _role.value = userRole
-                    _uiState.value = LoginUiState.Success
+                    _uiState.value = LoginUiState.Success(userRole)
                 }
                 .onFailure { exception ->
                     _uiState.value = LoginUiState.Error(

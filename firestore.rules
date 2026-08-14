@@ -1,0 +1,218 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================================================
+    // Helper functions: Secure and optimized
+    // ========================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      // Safely access user document data
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getUserRole() {
+      // Optimization: Only call get() if signed in and doc exists to avoid crashes
+      return (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)))
+        ? getUserData().role
+        : null;
+    }
+
+    function isHighLevelAuth() {
+      // CEO and Admins have broad access
+      return isSignedIn() && getUserRole() in ['CEO', 'ADMIN', 'IT_ADMIN'];
+    }
+
+    // Type checking helpers for data integrity
+    function isString(val) { return val is string; }
+    function isInt(val) { return val is int; }
+
+    // =========================
+    // Users Collection
+    // =========================
+    match /users/{userId} {
+      // Allow listing the entire collection for high-level auth
+      allow list: if isHighLevelAuth();
+
+      // Users can see their own profile; management and TEAM can see all for collaboration
+      allow get: if isSignedIn() && (request.auth.uid == userId || isHighLevelAuth() || getUserRole() == 'TEAM');
+
+      // Backward compatibility for existing rules that might use read
+      allow read: if isSignedIn() && (request.auth.uid == userId || isHighLevelAuth() || getUserRole() == 'TEAM');
+
+      // Allow users to create their own profile during registration (restricted roles)
+      // Management can create any user
+      allow create: if isSignedIn() && (
+        (request.auth.uid == userId && request.resource.data.role in ['DONOR', 'VOLUNTEER']) ||
+        isHighLevelAuth()
+      );
+
+      // Allow users to update their own profile EXCEPT for the 'role' and 'enabled' fields
+      // Management can update anything
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'enabled'])) ||
+        isHighLevelAuth()
+      );
+
+      allow delete: if isHighLevelAuth();
+
+      // ALLOW users to manage their own active program signup
+      match /active_program/{docId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // =========================
+    // Lumisphere Collection (NGO/Projects)
+    // =========================
+    match /lumisphere/{docId} {
+      // Broad access for management
+      allow read, write: if isHighLevelAuth();
+
+      // Public read for projects, reports, and summary stats
+      allow read: if docId in ['projects', 'reports', 'achievements', 'volunteers', 'donations', 'revenue', 'expenses'];
+
+      // Nested items pattern (Sub-collections)
+      match /items/{item} {
+        // Only projects, reports and achievements items are public; sensitive lists (volunteers, donations) are restricted
+        allow read: if docId in ['projects', 'reports', 'achievements'] || isHighLevelAuth();
+
+        // Volunteers can read their own profile; TEAM members can see volunteers for management
+        allow read: if docId == 'volunteers' && isSignedIn() && (request.auth.uid == item || getUserRole() == 'TEAM');
+
+        // Donors can read their own profile and donations
+        allow read: if docId == 'donors' && isSignedIn() && (request.auth.uid == item || isHighLevelAuth());
+        allow read: if docId == 'donations' && isSignedIn() && (request.auth.uid == resource.data.donorId || isHighLevelAuth());
+
+        // Allow donors to update their own lastContactDate during activity
+        allow update: if docId == 'donors' && isSignedIn() && request.auth.uid == item &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastContactDate']);
+
+        // Allow signed-in users and guests to create volunteer applications, donations, and seed achievements
+        // SECURITY: 'volunteers' must have 'Pending' status to prevent self-approval
+        allow create: if isHighLevelAuth() ||
+                       (docId == 'volunteers' && request.resource.data.status == 'Pending') ||
+                       (docId == 'donors' && request.auth.uid == item && (request.resource.data.status == 'Active' || request.resource.data.keys().hasOnly(['lastContactDate']))) ||
+                       (docId == 'donations' && (isSignedIn() ? request.resource.data.donorId == request.auth.uid : request.resource.data.donorId == null)) ||
+                       (docId == 'achievements' && isSignedIn());
+
+        // Management only for updates and deletions; TEAM can update tasks and progress
+        // Volunteers can update their own profile fields AND gamification stats (for client-side logic)
+        // AND projects they are assigned to
+        // Guests/Donors can update project 'spent' amount during donation
+        allow update: if isHighLevelAuth() ||
+                       (docId == 'volunteers' && isSignedIn() && request.auth.uid == item &&
+                        request.resource.data.diff(resource.data).affectedKeys()
+                          .hasOnly(['name', 'phoneNumber', 'profileImageUrl', 'skills', 'motivation', 'darkModeEnabled', 'notificationsEnabled', 'points', 'level', 'achievements', 'trophiesCount'])) ||
+                       (docId == 'projects' && (
+                         getUserRole() == 'TEAM' ||
+                         (getUserRole() == 'VOLUNTEER' && request.auth.uid in resource.data.volunteers) ||
+                         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spent', 'lastUpdated']))
+                       ));
+        allow delete: if isHighLevelAuth();
+
+        // Specific rule for project progress updates by Team members
+        match /{allSubPaths=**} {
+           allow read, write: if isHighLevelAuth();
+        }
+      }
+
+      // Allow recursive access for management to all sub-collections (impact, financials, etc.)
+      match /{allSubPaths=**} {
+        allow read, write: if isHighLevelAuth();
+      }
+
+      // Allow donation summary, donors count and revenue to be updated (e.g., totalAmount or count increment)
+      // Added 'create' to support initializing these documents during the first transaction
+      allow create, update: if (docId in ['donations', 'revenue'] &&
+                               (resource == null ? request.resource.data.keys().hasOnly(['totalAmount'])
+                                                 : request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalAmount']))) ||
+                       (docId == 'donors' && (resource == null ? request.resource.data.keys().hasOnly(['count'])
+                                                               : request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count'])));
+    }
+
+    // =========================
+    // Luminary Collection (Business & Financials)
+    // =========================
+    match /luminary/{docId} {
+      // Management access to everything in Luminary
+      allow read, write: if isHighLevelAuth();
+
+      match /{allSubPaths=**} {
+        allow read, write: if isHighLevelAuth();
+      }
+
+      // Rules for items within Luminary sub-collections (Freelances, Teams, Documents, etc.)
+      match /items/{itemId} {
+        allow read: if isSignedIn() && (
+          isHighLevelAuth() ||
+          getUserRole() == 'TEAM' ||
+          request.auth.uid in resource.data.teamIds ||
+          request.auth.token.email in resource.data.teamIds
+        );
+
+        // Allow TEAM members to update their own profile and project tasks
+        allow update: if isHighLevelAuth() || (
+          isSignedIn() &&
+          (
+            (docId == 'teams' && (request.auth.token.email == resource.data.email || request.auth.uid == itemId) &&
+             request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'phone', 'bio', 'isTwoFactorEnabled', 'imageUrl', 'gender'])) ||
+            (docId == 'freelance' && getUserRole() == 'TEAM' &&
+             (request.auth.uid in resource.data.teamIds || request.auth.token.email in resource.data.teamIds) &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tasks', 'progress', 'lastUpdated']))
+          )
+        );
+      }
+    }
+
+    // =========================
+    // Notifications Collection
+    // =========================
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isHighLevelAuth());
+      allow update: if isSignedIn() && request.auth.uid == resource.data.userId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      allow create: if isHighLevelAuth() || (isSignedIn() && request.resource.data.userId == request.auth.uid);
+    }
+
+    // =========================
+    // Legacy Collections
+    // =========================
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if isHighLevelAuth();
+    }
+
+    match /finance/{docId} {
+      allow read, write: if isHighLevelAuth();
+    }
+
+    // =========================
+    // Payments Collection
+    // =========================
+    match /payments/{paymentId} {
+      // Allow users to see their own payment status
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isHighLevelAuth());
+      // Allow specific lookup if userId is anonymous (backend sets this)
+      allow get: if resource.data.userId == 'anonymous';
+    }
+
+    // =========================
+    // Audit Logs Collection
+    // =========================
+    match /audit_logs/{logId} {
+      allow read: if isHighLevelAuth();
+      allow create: if isSignedIn(); // Allow any signed-in user to record an action
+      allow update, delete: if false; // Audit logs should be immutable
+    }
+
+    // Default: Deny all (Secure by default)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

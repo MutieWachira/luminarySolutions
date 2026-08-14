@@ -68,7 +68,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.luminarysolutions.ui.donor.viewmodel.DonorSignUpUiState
 import com.example.luminarysolutions.ui.donor.viewmodel.DonorSignUpViewModel
@@ -85,7 +85,7 @@ import com.example.luminarysolutions.ui.donor.viewmodel.DonorSignUpViewModel
 @Composable
 fun DonorSignUpScreen(
     navController: NavController,
-    viewModel: DonorSignUpViewModel = viewModel()
+    viewModel: DonorSignUpViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current

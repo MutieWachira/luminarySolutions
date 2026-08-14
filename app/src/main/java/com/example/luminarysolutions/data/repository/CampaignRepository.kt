@@ -1,8 +1,5 @@
 package com.example.luminarysolutions.data.repository
 
-import com.example.luminarysolutions.ui.donor.models.CampaignUi
-import com.example.luminarysolutions.ui.donor.models.CategoryUi
-import com.example.luminarysolutions.ui.donor.models.HeroItemUi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Eco
@@ -10,12 +7,17 @@ import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.WaterDrop
+import com.example.luminarysolutions.ui.donor.models.CampaignUi
+import com.example.luminarysolutions.ui.donor.models.CategoryUi
+import com.example.luminarysolutions.ui.donor.models.HeroItemUi
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Result wrapper for paginated data.
@@ -46,8 +48,10 @@ interface CampaignRepository {
  * Production-ready implementation of CampaignRepository using Firebase Firestore.
  * Implements pagination and category filtering with Clean Architecture principles.
  */
-class CampaignRepositoryImpl : CampaignRepository {
-    private val db = FirebaseFirestore.getInstance()
+@Singleton
+class CampaignRepositoryImpl @Inject constructor(
+    private val db: FirebaseFirestore
+) : CampaignRepository {
     private val projectsCollection = db.collection("lumisphere").document("projects").collection("items")
 
     // Constants for Firestore fields to avoid typos and improve maintainability

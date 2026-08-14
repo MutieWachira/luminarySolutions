@@ -2,13 +2,18 @@ package com.example.luminarysolutions.ui.ceo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.luminarysolutions.data.firebase.FirestoreService
 import com.example.luminarysolutions.data.models.Donor
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-
-import com.example.luminarysolutions.data.repository.DonorsRepository
+import com.example.luminarysolutions.data.repository.DashboardRepository
 import com.google.firebase.firestore.DocumentSnapshot
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class DonorsUiState(
     val donors: List<Donor> = emptyList(),
@@ -27,8 +32,9 @@ enum class DonorFilter { ALL, ACTIVE, PENDING, INACTIVE }
  * Follows Clean Architecture by keeping logic reactive and state-driven.
  * Implements MVVM pattern with repository-based data fetching and pagination.
  */
-class DonorsViewModel(
-    private val repository: DonorsRepository = DonorsRepository()
+@HiltViewModel
+class DonorsViewModel @Inject constructor(
+    private val repository: DashboardRepository
 ) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     private val _filter = MutableStateFlow(DonorFilter.ALL)
@@ -138,10 +144,8 @@ class DonorsViewModel(
                 valueOrNote = value,
                 lastContact = ""
             )
-            repository.addDonor(newDonor) { success ->
-                if (success) {
-                    // Success handling
-                }
+            repository.addDonor(newDonor).onFailure { error ->
+                _uiState.update { it.copy(error = error.message ?: "Failed to add donor") }
             }
         }
     }
@@ -151,8 +155,8 @@ class DonorsViewModel(
      */
     fun updateDonor(donor: Donor) {
         viewModelScope.launch {
-            repository.updateDonor(donor) { success ->
-                // Feedback handling
+            repository.updateDonor(donor).onFailure { error ->
+                _uiState.update { it.copy(error = error.message ?: "Failed to update donor") }
             }
         }
     }
@@ -162,8 +166,8 @@ class DonorsViewModel(
      */
     fun deleteDonor(donorId: String) {
         viewModelScope.launch {
-            repository.deleteDonor(donorId) { success ->
-                // Feedback handling
+            repository.deleteDonor(donorId).onFailure { error ->
+                _uiState.update { it.copy(error = error.message ?: "Failed to delete donor") }
             }
         }
     }

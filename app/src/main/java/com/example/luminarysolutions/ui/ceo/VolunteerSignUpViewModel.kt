@@ -2,30 +2,26 @@ package com.example.luminarysolutions.ui.ceo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.luminarysolutions.data.models.Volunteer
-import com.example.luminarysolutions.data.repository.ProjectsRepository
+import com.example.luminarysolutions.data.repository.DashboardRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * ViewModel for the Volunteer Sign-Up process.
- * Manages the state of the sign-up form and interaction with the repository.
  */
-class VolunteerSignUpViewModel : ViewModel() {
-    private val repository = ProjectsRepository()
+@HiltViewModel
+class VolunteerSignUpViewModel @Inject constructor(
+    private val repository: DashboardRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow<VolunteerSignUpUiState>(VolunteerSignUpUiState.Idle)
     val uiState: StateFlow<VolunteerSignUpUiState> = _uiState
 
     /**
      * Submits a new volunteer application.
-     * @param name The full name of the volunteer.
-     * @param email The email address.
-     * @param phone The contact phone number.
-     * @param skills A list of skills provided by the volunteer.
-     * @param motivation The reason for joining.
-     * @param projectId Optional project ID the user is applying for.
      */
     fun submitApplication(
         name: String,
@@ -42,7 +38,7 @@ class VolunteerSignUpViewModel : ViewModel() {
 
         _uiState.value = VolunteerSignUpUiState.Loading
 
-        val volunteer = Volunteer(
+        val volunteer = com.example.luminarysolutions.data.models.Volunteer(
             id = "", // Firestore will generate an ID
             name = name,
             email = email,
@@ -55,16 +51,10 @@ class VolunteerSignUpViewModel : ViewModel() {
         )
 
         viewModelScope.launch {
-            try {
-                repository.addVolunteerApplication(volunteer) { success ->
-                    if (success) {
-                        _uiState.value = VolunteerSignUpUiState.Success
-                    } else {
-                        _uiState.value = VolunteerSignUpUiState.Error("Failed to submit application. Please check your network and try again.")
-                    }
-                }
-            } catch (e: Exception) {
-                _uiState.value = VolunteerSignUpUiState.Error("Submission failed: ${e.message}")
+            repository.addVolunteerApplication(volunteer).onSuccess {
+                _uiState.value = VolunteerSignUpUiState.Success
+            }.onFailure { error ->
+                _uiState.value = VolunteerSignUpUiState.Error(error.message ?: "Failed to submit application. Please check your network and try again.")
             }
         }
     }

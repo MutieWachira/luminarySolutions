@@ -3,13 +3,15 @@ package com.example.luminarysolutions.ui.ceo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.models.Partner
-import com.example.luminarysolutions.data.repository.PartnersRepository
+import com.example.luminarysolutions.data.repository.DashboardRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * UI State for the Partners Screen
@@ -24,8 +26,10 @@ data class PartnerUiState(
 /**
  * ViewModel for managing Partners business logic and state
  */
-class PartnersViewModel : ViewModel() {
-    private val repository = PartnersRepository()
+@HiltViewModel
+class PartnersViewModel @Inject constructor(
+    private val repository: DashboardRepository
+) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     private val _isSaving = MutableStateFlow(false)
 
@@ -66,7 +70,9 @@ class PartnersViewModel : ViewModel() {
                 valueOrNote = "",
                 lastContact = ""
             )
-            repository.addPartner(newPartner) { success ->
+            repository.addPartner(newPartner).onSuccess {
+                _isSaving.value = false
+            }.onFailure {
                 _isSaving.value = false
             }
         }

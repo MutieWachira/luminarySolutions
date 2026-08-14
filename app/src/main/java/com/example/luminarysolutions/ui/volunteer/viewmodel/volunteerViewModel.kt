@@ -10,12 +10,16 @@ import com.example.luminarysolutions.data.models.Notification
 import com.example.luminarysolutions.data.models.Project
 import com.example.luminarysolutions.data.models.Task
 import com.example.luminarysolutions.data.models.Volunteer
+import com.example.luminarysolutions.data.repository.GamificationRepository
+import com.example.luminarysolutions.data.repository.NotificationRepository
+import com.example.luminarysolutions.data.repository.ProjectRepository
 import com.example.luminarysolutions.data.repository.VolunteerRepository
 import com.example.luminarysolutions.ui.volunteer.models.TaskStatus
 import com.example.luminarysolutions.ui.volunteer.models.VolunteerEventUi
 import com.example.luminarysolutions.ui.volunteer.models.VolunteerTaskUi
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,10 +31,16 @@ import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
-class VolunteerViewModel : ViewModel() {
-    private val repository = VolunteerRepository()
-    private val auth = FirebaseAuth.getInstance()
+@HiltViewModel
+class VolunteerViewModel @Inject constructor(
+    private val repository: VolunteerRepository,
+    private val projectRepository: ProjectRepository,
+    private val gamificationRepository: GamificationRepository,
+    private val notificationRepository: NotificationRepository,
+    private val auth: FirebaseAuth
+) : ViewModel() {
 
     // Profile State
     private val _profile = MutableStateFlow<Volunteer?>(null)
@@ -81,44 +91,54 @@ class VolunteerViewModel : ViewModel() {
 
         val currentUserId = auth.currentUser?.uid ?: volunteerId
         
-        // Ensure achievements are seeded if collection is empty
-        com.example.luminarysolutions.data.firebase.FirestoreService.seedAchievements()
-
         viewModelScope.launch {
-            repository.getVolunteerProfile(currentUserId).collect {
+            repository.getVolunteerProfileFlow(currentUserId).collect {
                 _profile.value = it
+                
+                // Once profile is loaded, filter unlocked achievements
+                it?.let { volunteer ->
+                    val unlocked = _achievements.value.filter { ach -> volunteer.achievements.contains(ach.id) }
+                    _unlockedAchievements.value = unlocked
+                }
             }
         }
         viewModelScope.launch {
-            repository.getAvailableCampaigns().collect {
+            projectRepository.getAssignedProjects(listOf(currentUserId)).collect {
                 _campaigns.value = it
             }
         }
         viewModelScope.launch {
-            repository.getAchievements().collect {
-                android.util.Log.d("VolunteerViewModel", "Loaded ${it.size} achievements")
-                _achievements.value = it
+            gamificationRepository.getAchievements().collect { all ->
+                // Robust Filter: Check role field OR ID prefix as fallback for legacy data
+                val volunteerAchievements = all.filter { 
+                    it.role == "VOLUNTEER" || 
+                    it.id.startsWith("task_") || 
+                    it.id.startsWith("proj_") || 
+                    it.id.startsWith("lvl_")
+                }
+                _achievements.value = volunteerAchievements
+                
+                // Sync unlocked if profile already loaded
+                _profile.value?.let { volunteer ->
+                    val unlocked = volunteerAchievements.filter { ach -> volunteer.achievements.contains(ach.id) }
+                    _unlockedAchievements.value = unlocked
+                }
             }
         }
         viewModelScope.launch {
-            repository.getUnlockedAchievements(currentUserId).collect {
-                _unlockedAchievements.value = it
-            }
-        }
-        viewModelScope.launch {
-            repository.getNotifications(currentUserId).collect {
+            notificationRepository.getNotifications(currentUserId).collect {
                 _notifications.value = it
             }
         }
         viewModelScope.launch {
-            repository.getTasks(currentUserId).collect { firestoreTasksWithId ->
+            repository.getVolunteerTasks(currentUserId).collect { firestoreTasksWithId ->
                 tasks = firestoreTasksWithId.map { (task, projectId) -> 
                     mapToUiTask(task, projectId) 
                 }
             }
         }
         viewModelScope.launch {
-            repository.getAssignedProjects(currentUserId).collect { assignedProjects ->
+            projectRepository.getAssignedProjects(listOf(currentUserId)).collect { assignedProjects ->
                 events = assignedProjects.map { mapToUiEvent(it) }
             }
         }
@@ -149,8 +169,8 @@ class VolunteerViewModel : ViewModel() {
 
     fun updateProfile(volunteer: Volunteer) {
         viewModelScope.launch {
-            repository.updateProfile(volunteer) { success ->
-                if (success) _profile.value = volunteer
+            repository.updateVolunteer(volunteer).onSuccess {
+                _profile.value = volunteer
             }
         }
     }
@@ -175,7 +195,9 @@ class VolunteerViewModel : ViewModel() {
     }
 
     fun markAsRead(notificationId: String) {
-        repository.markNotificationAsRead(notificationId)
+        viewModelScope.launch {
+            notificationRepository.markAsRead(notificationId)
+        }
     }
 
     fun updateSettings(notificationsEnabled: Boolean, darkModeEnabled: Boolean) {
@@ -184,8 +206,10 @@ class VolunteerViewModel : ViewModel() {
                 notificationsEnabled = notificationsEnabled,
                 darkModeEnabled = darkModeEnabled
             )
-            repository.updateProfile(updated) { success ->
-                if (success) _profile.value = updated
+            viewModelScope.launch {
+                repository.updateVolunteer(updated).onSuccess {
+                    _profile.value = updated
+                }
             }
         }
     }
@@ -195,12 +219,15 @@ class VolunteerViewModel : ViewModel() {
     fun setStatus(taskId: String, status: TaskStatus, onComplete: (Boolean) -> Unit = {}) {
         val task = tasks.firstOrNull { it.id == taskId } ?: return
         viewModelScope.launch {
-            repository.updateTaskStatus(
-                projectId = task.projectId,
-                taskId = taskId,
-                isDone = status == TaskStatus.DONE
-            ) { success ->
-                onComplete(success)
+            projectRepository.updateTaskStatus(task.projectId, task.id, status == TaskStatus.DONE, false).onSuccess {
+                onComplete(true)
+                // Process gamification for task completion
+                if (status == TaskStatus.DONE) {
+                    val currentUserId = auth.currentUser?.uid ?: ""
+                    gamificationRepository.processGamification(currentUserId, "TASK_COMPLETE")
+                }
+            }.onFailure {
+                onComplete(false)
             }
         }
     }

@@ -6,10 +6,12 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.luminarysolutions.data.models.Team
-import com.example.luminarysolutions.data.repository.TeamRepository
+import com.example.luminarysolutions.data.repository.DashboardRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 sealed class TeamUiState {
     object Idle : TeamUiState()
@@ -18,8 +20,9 @@ sealed class TeamUiState {
     data class Error(val message: String) : TeamUiState()
 }
 
-class TeamManagementViewModel(
-    private val repository: TeamRepository = TeamRepository()
+@HiltViewModel
+class TeamManagementViewModel @Inject constructor(
+    private val repository: DashboardRepository
 ) : ViewModel() {
 
     var uiState by mutableStateOf<TeamUiState>(TeamUiState.Idle)
@@ -34,7 +37,9 @@ class TeamManagementViewModel(
 
     fun fetchTeamMembers() {
         viewModelScope.launch {
-            _teamMembers.value = repository.getTeamMembers()
+            repository.getTeamsOneShot().onSuccess {
+                _teamMembers.value = it
+            }
         }
     }
 

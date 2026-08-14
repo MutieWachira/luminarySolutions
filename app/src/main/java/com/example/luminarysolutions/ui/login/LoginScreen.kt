@@ -39,19 +39,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.luminarysolutions.R
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
-    viewModel: LoginViewModel = viewModel()
+    onLoginSuccess: (com.example.luminarysolutions.ui.auth.UserRole) -> Unit,
+    viewModel: LoginViewModel = hiltViewModel()
 ) {
     LaunchedEffect(Unit) {
         viewModel.resetLoginState()
@@ -59,6 +60,7 @@ fun LoginScreen(
     val state by viewModel.uiState.collectAsState()
     val email by viewModel.email.collectAsState()
     val password by viewModel.password.collectAsState()
+    val focusManager = LocalFocusManager.current
 
     LoginScreenContent(
         state = state,
@@ -66,7 +68,10 @@ fun LoginScreen(
         password = password,
         onEmailChange = viewModel::onEmailChange,
         onPasswordChange = viewModel::onPasswordChange,
-        onLoginClick = { viewModel.login(email, password) },
+        onLoginClick = { 
+            focusManager.clearFocus()
+            viewModel.login(email, password) 
+        },
         onLoginSuccess = onLoginSuccess,
         onForgotPassword = { viewModel.resetPassword(email) }
     )
@@ -80,7 +85,7 @@ fun LoginScreenContent(
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onLoginClick: () -> Unit,
-    onLoginSuccess: () -> Unit,
+    onLoginSuccess: (com.example.luminarysolutions.ui.auth.UserRole) -> Unit,
     onForgotPassword: () -> Unit
 ) {
     // Fade-in animation
@@ -248,7 +253,7 @@ fun LoginScreenContent(
     // Trigger success callback
     if (state is LoginUiState.Success) {
         LaunchedEffect(state) {
-            onLoginSuccess()
+            onLoginSuccess(state.role)
         }
     }
 }

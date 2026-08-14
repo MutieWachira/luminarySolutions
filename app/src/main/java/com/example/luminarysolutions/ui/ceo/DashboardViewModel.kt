@@ -3,17 +3,35 @@ package com.example.luminarysolutions.ui.ceo
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.luminarysolutions.data.firebase.*
-import com.example.luminarysolutions.data.models.*
+import com.example.luminarysolutions.data.firebase.DashboardStats
+import com.example.luminarysolutions.data.firebase.LumOverviewDashboardStats
+import com.example.luminarysolutions.data.firebase.LumiSphereOverviewDashboardStats
+import com.example.luminarysolutions.data.models.Approval
+import com.example.luminarysolutions.data.models.Document
+import com.example.luminarysolutions.data.models.Event
+import com.example.luminarysolutions.data.models.Freelance
+import com.example.luminarysolutions.data.models.Project
+import com.example.luminarysolutions.data.models.Team
+import com.example.luminarysolutions.data.models.TeamCulture
+import com.example.luminarysolutions.data.models.Volunteer
 import com.example.luminarysolutions.data.repository.DashboardRepository
-import kotlinx.coroutines.flow.*
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import javax.inject.Inject
 
 data class CEODashboardUiState(
+    val userName: String = "Executive",
     val generalStats: DashboardStats = DashboardStats(),
-    val lumStats: lumOverviewDashboardStats = lumOverviewDashboardStats(),
-    val lumiSphereStats: lumiSphereOverviewDashboardStats = lumiSphereOverviewDashboardStats(),
+    val lumStats: LumOverviewDashboardStats = LumOverviewDashboardStats(),
+    val lumiSphereStats: LumiSphereOverviewDashboardStats = LumiSphereOverviewDashboardStats(),
     val recentInitiatives: List<Project> = emptyList(),
     val recentApprovals: List<Approval> = emptyList(),
     val recentDocuments: List<Document> = emptyList(),
@@ -54,11 +72,21 @@ data class CEODashboardUiState(
     val isSaving: Boolean = false,
     val message: String? = null,
     val isError: Boolean = false,
-    val totalProgramsCount: Int = 0
+    val totalProgramsCount: Int = 0,
+    val fundingTrend: String = "+0%",
+    val isFundingPositive: Boolean = true,
+    val burnTrend: String = "+0%",
+    val isBurnPositive: Boolean = false,
+    val programsTrend: String = "+0%",
+    val isProgramsPositive: Boolean = true,
+    val reachTrend: String = "+0%",
+    val isReachPositive: Boolean = true
 )
 
-class CEODashboardViewModel : ViewModel() {
-    private val repository = DashboardRepository()
+@HiltViewModel
+class CEODashboardViewModel @Inject constructor(
+    private val repository: DashboardRepository
+) : ViewModel() {
     private val _selectedYear = MutableStateFlow(Calendar.getInstance().get(Calendar.YEAR))
     val selectedYear: StateFlow<Int> = _selectedYear.asStateFlow()
 
@@ -86,6 +114,23 @@ class CEODashboardViewModel : ViewModel() {
 
     private val _message = MutableStateFlow<String?>(null)
     private val _isError = MutableStateFlow(false)
+
+    private val _userName = MutableStateFlow("Executive")
+
+    init {
+        observeUserProfile()
+    }
+
+    private fun observeUserProfile() {
+        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        if (uid != null) {
+            viewModelScope.launch {
+                repository.getUserProfile(uid).collect { user ->
+                    user?.let { _userName.value = it.name }
+                }
+            }
+        }
+    }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<CEODashboardUiState> = combine(
@@ -120,11 +165,12 @@ class CEODashboardViewModel : ViewModel() {
         _eventSearchQuery,
         _isSaving,
         _message,
-        _isError
+        _isError,
+        _userName
     ) { args ->
         val generalStats = args[0] as DashboardStats
-        val lumStats = args[1] as lumOverviewDashboardStats
-        val lumiSphereStats = args[2] as lumiSphereOverviewDashboardStats
+        val lumStats = args[1] as LumOverviewDashboardStats
+        val lumiSphereStats = args[2] as LumiSphereOverviewDashboardStats
         val allLumiSphereProjects = args[3] as List<Project>
         val recentApprovals = args[4] as List<Approval>
         val allDocs = args[5] as List<Document>
@@ -158,6 +204,38 @@ class CEODashboardViewModel : ViewModel() {
         val saving = args[29] as Boolean
         val message = args[30] as? String
         val isError = args[31] as Boolean
+        val userName = args[32] as String
+
+        // Quarterly Trend Calculation Logic
+        val monthOrder = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+        val currentMonth = Calendar.getInstance().get(Calendar.MONTH)
+        val currentQuarter = currentMonth / 3
+        val previousQuarter = if (currentQuarter == 0) 3 else currentQuarter - 1
+
+        fun calculateTrend(currentSum: Int, previousSum: Int): String {
+            if (previousSum == 0) return "+0%"
+            val diff = ((currentSum - previousSum).toFloat() / previousSum.toFloat()) * 100
+            val prefix = if (diff >= 0) "+" else ""
+            return "$prefix${diff.toInt()}%"
+        }
+
+        // Trends for Funding (Donations)
+        val currentQuarterDonations = lumiSphereStats.monthlyStats
+            .filter { monthOrder.indexOf(it.month.lowercase()) / 3 == currentQuarter }
+            .sumOf { it.donations }
+        val previousQuarterDonations = lumiSphereStats.monthlyStats
+            .filter { monthOrder.indexOf(it.month.lowercase()) / 3 == previousQuarter }
+            .sumOf { it.donations }
+        val fundingTrend = calculateTrend(currentQuarterDonations, previousQuarterDonations)
+
+        // Trends for Burn (Expenses from Luminary)
+        val currentQuarterExpenses = lumStats.monthlyStats
+            .filter { monthOrder.indexOf(it.month.lowercase()) / 3 == currentQuarter }
+            .sumOf { it.expenses }
+        val previousQuarterExpenses = lumStats.monthlyStats
+            .filter { monthOrder.indexOf(it.month.lowercase()) / 3 == previousQuarter }
+            .sumOf { it.expenses }
+        val burnTrend = calculateTrend(currentQuarterExpenses, previousQuarterExpenses)
 
         // Filtering Luminary Projects (Freelance)
         val filteredLumProjects = luminaryProjects.filter { project ->
@@ -216,6 +294,7 @@ class CEODashboardViewModel : ViewModel() {
         val totalProgramsCount = totalLumCount + totalLumiSphereCount
 
         CEODashboardUiState(
+            userName = userName,
             generalStats = generalStats,
             lumStats = lumStats,
             // BUSINESS RULE: LumiSphere details should ONLY show LumiSphere specific counts
@@ -260,7 +339,15 @@ class CEODashboardViewModel : ViewModel() {
             isSaving = saving,
             message = message,
             isError = isError,
-            totalProgramsCount = totalProgramsCount 
+            totalProgramsCount = totalProgramsCount,
+            fundingTrend = fundingTrend,
+            isFundingPositive = fundingTrend.startsWith("+"),
+            burnTrend = burnTrend,
+            isBurnPositive = !burnTrend.startsWith("+"), // Lower burn is positive
+            programsTrend = "+2.4%", // Mocked quarterly trend
+            isProgramsPositive = true,
+            reachTrend = "+18%", // Mocked quarterly trend
+            isReachPositive = true
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CEODashboardUiState())
 
@@ -303,17 +390,17 @@ class CEODashboardViewModel : ViewModel() {
                 finalImageUrl ?: freelance.imageUrl
             }
 
-            repository.addLuminaryProject(freelance.copy(imageUrl = sanitizedImageUrl)) { success ->
+            repository.addLuminaryProject(freelance.copy(imageUrl = sanitizedImageUrl)).onSuccess {
                 _isSaving.value = false
-                if (success) {
-                    _message.value = if (finalImageUrl == null && imageUri != null) 
-                        "Project added (image failed)" else "Project added successfully"
-                    _isError.value = false
-                } else {
-                    _message.value = "Failed to add project to database."
-                    _isError.value = true
-                }
-                onComplete(success)
+                _message.value = if (finalImageUrl == null && imageUri != null) 
+                    "Project added (image failed)" else "Project added successfully"
+                _isError.value = false
+                onComplete(true)
+            }.onFailure {
+                _isSaving.value = false
+                _message.value = "Failed to add project to database."
+                _isError.value = true
+                onComplete(false)
             }
         }
     }
@@ -331,34 +418,36 @@ class CEODashboardViewModel : ViewModel() {
                 finalImageUrl ?: freelance.imageUrl
             }
 
-            repository.updateLuminaryProject(freelance.copy(imageUrl = sanitizedImageUrl)) { success ->
+            repository.updateLuminaryProject(freelance.copy(imageUrl = sanitizedImageUrl)).onSuccess {
                 _isSaving.value = false
-                if (success) {
-                    _message.value = "Project updated"
-                    _isError.value = false
-                } else {
-                    _message.value = "Update failed"
-                    _isError.value = true
-                }
-                onComplete(success)
+                _message.value = "Project updated"
+                _isError.value = false
+                onComplete(true)
+            }.onFailure {
+                _isSaving.value = false
+                _message.value = "Update failed"
+                _isError.value = true
+                onComplete(false)
             }
         }
     }
 
     fun deleteLuminaryProject(id: String, onComplete: (Boolean) -> Unit) {
-        repository.deleteLuminaryProject(id, onComplete)
+        viewModelScope.launch {
+            repository.deleteLuminaryProject(id).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
+        }
     }
     
     fun addTeamMember(team: Team, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             _isSaving.value = true
-            val result = repository.addTeamMember(team)
-            _isSaving.value = false
-            if (result.isSuccess) {
+            repository.addTeamMember(team).onSuccess {
+                _isSaving.value = false
                 _message.value = "Team member added successfully. Email sent."
                 _isError.value = false
                 onComplete(true)
-            } else {
+            }.onFailure {
+                _isSaving.value = false
                 _message.value = "Failed to add team member."
                 _isError.value = true
                 onComplete(false)
@@ -374,13 +463,13 @@ class CEODashboardViewModel : ViewModel() {
     fun deleteTeamMember(id: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             _isSaving.value = true
-            val result = repository.deleteTeamMember(id)
-            _isSaving.value = false
-            if (result.isSuccess) {
+            repository.deleteTeamMember(id).onSuccess {
+                _isSaving.value = false
                 _message.value = "Team member removed."
                 _isError.value = false
                 onComplete(true)
-            } else {
+            }.onFailure {
+                _isSaving.value = false
                 _message.value = "Failed to remove team member."
                 _isError.value = true
                 onComplete(false)
@@ -389,17 +478,21 @@ class CEODashboardViewModel : ViewModel() {
     }
 
     fun updateTeamMember(team: Team, onComplete: (Boolean) -> Unit) {
-        repository.updateTeamMember(team, onComplete)
+        viewModelScope.launch {
+            repository.updateTeamMember(team).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
+        }
     }
     
     fun addDocument(doc: Document, uri: Uri?, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             val fileUrl = uri?.let { repository.uploadFile(it, doc.name) }
-            repository.addDocument(doc.copy(fileUrl = fileUrl), onComplete)
+            repository.addDocument(doc.copy(fileUrl = fileUrl)).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
         }
     }
     fun deleteDocument(id: String, onComplete: (Boolean) -> Unit) {
-        repository.deleteDocument(id, onComplete)
+        viewModelScope.launch {
+            repository.deleteDocument(id).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
+        }
     }
 
     fun addProgram(project: Project, imageUri: Uri?, onComplete: (Boolean) -> Unit) {
@@ -420,17 +513,17 @@ class CEODashboardViewModel : ViewModel() {
                 finalImageUrl ?: project.imageUrl
             }
 
-            repository.addProject(project.copy(imageUrl = sanitizedImageUrl)) { success ->
+            repository.addProject(project.copy(imageUrl = sanitizedImageUrl)).onSuccess {
                 _isSaving.value = false
-                if (success) {
-                    _message.value = if (finalImageUrl == null && imageUri != null) 
-                        "Program added (image failed)" else "Program added successfully"
-                    _isError.value = false
-                } else {
-                    _message.value = "Failed to create program."
-                    _isError.value = true
-                }
-                onComplete(success)
+                _message.value = if (finalImageUrl == null && imageUri != null) 
+                    "Program added (image failed)" else "Program added successfully"
+                _isError.value = false
+                onComplete(true)
+            }.onFailure {
+                _isSaving.value = false
+                _message.value = "Failed to create program."
+                _isError.value = true
+                onComplete(false)
             }
         }
     }
@@ -448,50 +541,67 @@ class CEODashboardViewModel : ViewModel() {
                 finalImageUrl ?: project.imageUrl
             }
 
-            repository.updateProject(project.copy(imageUrl = sanitizedImageUrl)) { success ->
+            repository.updateProject(project.copy(imageUrl = sanitizedImageUrl)).onSuccess {
                 _isSaving.value = false
-                if (success) {
-                    _message.value = "Program updated successfully"
-                    _isError.value = false
-                } else {
-                    _message.value = "Failed to update program."
-                    _isError.value = true
-                }
-                onComplete(success)
+                _message.value = "Program updated successfully"
+                _isError.value = false
+                onComplete(true)
+            }.onFailure {
+                _isSaving.value = false
+                _message.value = "Failed to update program."
+                _isError.value = true
+                onComplete(false)
             }
         }
     }
 
     fun deleteProgram(id: String, onComplete: (Boolean) -> Unit) {
-        repository.deleteProject(id, onComplete)
+        viewModelScope.launch {
+            repository.deleteProject(id).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
+        }
     }
 
     fun updateVolunteerStatus(volunteerId: String, status: String, onComplete: (Boolean) -> Unit) {
-        repository.updateVolunteerStatus(volunteerId, status, onComplete)
+        viewModelScope.launch {
+            repository.updateVolunteerStatus(volunteerId, status).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
+        }
     }
 
     fun updateVolunteer(volunteer: Volunteer, onComplete: (Boolean) -> Unit) {
-        _isSaving.value = true
-        repository.updateVolunteer(volunteer) {
-            _isSaving.value = false
-            onComplete(it)
+        viewModelScope.launch {
+            _isSaving.value = true
+            repository.updateVolunteer(volunteer).onSuccess {
+                _isSaving.value = false
+                onComplete(true)
+            }.onFailure {
+                _isSaving.value = false
+                onComplete(false)
+            }
         }
     }
 
     fun deleteVolunteer(volunteerId: String, onComplete: (Boolean) -> Unit) {
-        repository.deleteVolunteer(volunteerId, onComplete)
+        viewModelScope.launch {
+            repository.deleteVolunteer(volunteerId).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
+        }
     }
 
     // Event Management
     fun addEvent(event: Event, onComplete: (Boolean) -> Unit) {
-        repository.addEvent(event, onComplete)
+        viewModelScope.launch {
+            repository.addEvent(event).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
+        }
     }
 
     fun updateEvent(event: Event, onComplete: (Boolean) -> Unit) {
-        repository.updateEvent(event, onComplete)
+        viewModelScope.launch {
+            repository.updateEvent(event).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
+        }
     }
 
     fun deleteEvent(eventId: String, onComplete: (Boolean) -> Unit) {
-        repository.deleteEvent(eventId, onComplete)
+        viewModelScope.launch {
+            repository.deleteEvent(eventId).onSuccess { onComplete(true) }.onFailure { onComplete(false) }
+        }
     }
 }

@@ -30,6 +30,10 @@ sealed class Screen(val route: String) {
     object Grievances : Screen("grievances")
     object Outcomes : Screen("outcomes")
 
+    // Admin module
+    object AdminMain : Screen("admin_main")
+    object AdminDashboard : Screen("admin_dashboard")
+
     object ProjectDetails : Screen("project_details/{projectId}") {
         fun createRoute(projectId: String) = "project_details/$projectId"
     }
@@ -80,6 +84,7 @@ sealed class Screen(val route: String) {
     object DonorDonations : Screen("donor_donations")
     object DonorReports : Screen("donor_reports")
     object DonorProfile : Screen("donor_profile")
+    object DonorAchievements : Screen("donor_achievements")
 
     object CampaignDetails : Screen("campaign_details/{campaignId}") {
         fun createRoute(campaignId: String) = "campaign_details/$campaignId"
@@ -94,4 +99,12 @@ sealed class Screen(val route: String) {
     }
 
     object DonorSignUp : Screen("donor_signup")
+
+    // Client module
+    object ClientDashboard : Screen("client_dashboard")
+    object ClientFreelanceServices : Screen("client_freelance_services")
+    object ClientServiceDetails : Screen("client_service_details/{serviceId}") {
+        fun createRoute(serviceId: String) = "client_service_details/$serviceId"
+    }
+    object ClientProfile : Screen("client_profile")
 }

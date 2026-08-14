@@ -2,17 +2,28 @@ package com.example.luminarysolutions.ui.team
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.luminarysolutions.data.firebase.FirestoreService
-import com.example.luminarysolutions.data.models.*
+import com.example.luminarysolutions.data.models.Freelance
+import com.example.luminarysolutions.data.models.Notification
+import com.example.luminarysolutions.data.models.Project
+import com.example.luminarysolutions.data.models.Task
+import com.example.luminarysolutions.data.models.Team
+import com.example.luminarysolutions.data.repository.DashboardRepository
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Enhanced UI State for the Team Dashboard.
- * Includes explicit support for Luminary and LumiSphere projects.
  */
 data class TeamDashboardUiState(
     val userProfile: Team? = null,
@@ -37,10 +48,12 @@ data class TaskWrapper(
 
 /**
  * TeamDashboardViewModel: Manages the business logic for the Team Dashboard.
- * Follows MVVM architecture and industry standards for real-time data handling.
  */
-class TeamDashboardViewModel : ViewModel() {
-    private val auth = FirebaseAuth.getInstance()
+@HiltViewModel
+class TeamDashboardViewModel @Inject constructor(
+    private val auth: FirebaseAuth,
+    private val repository: DashboardRepository
+) : ViewModel() {
     
     private val _uiState = MutableStateFlow(TeamDashboardUiState())
     val uiState: StateFlow<TeamDashboardUiState> = _uiState.asStateFlow()
@@ -51,7 +64,6 @@ class TeamDashboardViewModel : ViewModel() {
 
     /**
      * Observes dashboard data in real-time.
-     * Combines multiple Firestore streams and filters data based on user identity.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeDashboardData() {
@@ -62,27 +74,43 @@ class TeamDashboardViewModel : ViewModel() {
         _uiState.update { it.copy(isLoading = true) }
 
         // Fetch team profile based on email
-        val profileFlow = FirestoreService.getTeamProfileByEmail(email)
-
         viewModelScope.launch {
-            profileFlow.collect { profile ->
+            repository.getTeamMembers().map { members ->
+                members.find { it.email == email }?.let { user ->
+                    // Map User to Team for dashboard
+                    Team(
+                        id = user.id,
+                        name = user.name,
+                        email = user.email,
+                        imageUrl = user.profileImageUrl,
+                        phone = user.phoneNumber,
+                        bio = user.bio,
+                        role = user.role,
+                        enabled = user.enabled,
+                        isTwoFactorEnabled = user.isTwoFactorEnabled
+                    )
+                }
+            }.collect { profile ->
                 _uiState.update { it.copy(userProfile = profile) }
             }
         }
 
         viewModelScope.launch {
-            profileFlow
+            _uiState.map { it.userProfile }
                 .filterNotNull()
                 .flatMapLatest { profile ->
-                    // Use both profile ID (internal) and Auth UID (Firebase) for robustness
                     val identifiers = listOfNotNull(profile.id, authUid).distinct()
                     
                     combine(
-                        FirestoreService.getAssignedFreelanceProjects(identifiers),
-                        FirestoreService.getAssignedProjects(identifiers),
-                        FirestoreService.getNotifications(authUid)
-                    ) { freelance, projects, notifications ->
-                        DataTriple(freelance, projects, notifications, identifiers, profile.name)
+                        repository.getLuminaryProjects(),
+                        repository.getAssignedProjects(identifiers),
+                        repository.getNotifications(authUid)
+                    ) { freelance: List<Freelance>, projects: List<Project>, notifications: List<Notification> ->
+                        // Filter assigned freelance projects
+                        val assignedFreelance = freelance.filter { f ->
+                            identifiers.any { id -> f.teamIds.contains(id) || f.tasks.any { t -> t.assignedToIds.contains(id) } }
+                        }
+                        DataTriple(assignedFreelance, projects, notifications, identifiers, profile.name)
                     }
                 }
                 .collect { data ->
@@ -121,9 +149,6 @@ class TeamDashboardViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Helper class to hold combined flow data.
-     */
     private data class DataTriple(
         val freelance: List<Freelance>,
         val projects: List<Project>,
@@ -134,7 +159,6 @@ class TeamDashboardViewModel : ViewModel() {
 
     /**
      * Toggles the completion status of a task.
-     * Uses optimistic UI updates for a snappy professional feel.
      */
     fun toggleTaskCompletion(wrapper: TaskWrapper) {
         val originalTasks = _uiState.value.userTasks
@@ -148,45 +172,29 @@ class TeamDashboardViewModel : ViewModel() {
         _uiState.update { it.copy(userTasks = updatedTasks) }
 
         viewModelScope.launch {
-            try {
-                FirestoreService.updateTaskStatus(
-                    projectId = wrapper.projectId, 
-                    taskId = wrapper.task.id, 
-                    isDone = !wrapper.task.isDone,
-                    isFreelanceHint = wrapper.isFreelance
-                ) { success ->
-                    if (!success) {
-                        // Rollback on failure
-                        _uiState.update { it.copy(userTasks = originalTasks, error = "Sync Failed: Please check your connection") }
-                    }
-                }
-            } catch (e: Exception) {
-                // Rollback on crash
-                _uiState.update { it.copy(userTasks = originalTasks, error = "Operation failed: ${e.localizedMessage}") }
+            repository.updateTaskStatus(
+                projectId = wrapper.projectId, 
+                taskId = wrapper.task.id, 
+                isDone = !wrapper.task.isDone,
+                isFreelance = wrapper.isFreelance
+            ).onFailure {
+                // Rollback on failure
+                _uiState.update { it.copy(userTasks = originalTasks, error = "Sync Failed: Please check your connection") }
             }
         }
     }
 
-    /**
-     * Marks a notification as read.
-     */
     fun markNotificationAsRead(notificationId: String) {
         viewModelScope.launch {
-            FirestoreService.markNotificationAsRead(notificationId)
+            repository.markNotificationAsRead(notificationId)
         }
     }
 
-    /**
-     * Triggers a manual refresh of the dashboard data.
-     */
     fun refresh() {
         _uiState.update { it.copy(isRefreshing = true) }
         observeDashboardData()
     }
 
-    /**
-     * Clears the current error message.
-     */
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }

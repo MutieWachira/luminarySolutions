@@ -5,13 +5,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -20,13 +23,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.luminarysolutions.ui.common.UnifiedAchievementsScreen
 import com.example.luminarysolutions.ui.navigation.Screen
 import com.example.luminarysolutions.ui.volunteer.viewmodel.VolunteerViewModel
 
 @Composable
 fun VolunteerMainScreen(
     parentNavController: NavController,
-    vm: VolunteerViewModel = viewModel()
+    vm: VolunteerViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
     
@@ -47,7 +51,7 @@ fun VolunteerMainScreen(
                 VolunteerExploreScreen(parentNavController, navController, vm)
             }
             composable(Screen.VolunteerAchievements.route) {
-                VolunteerAchievementsScreen(vm)
+                UnifiedAchievementsScreen()
             }
             composable(Screen.VolunteerProfile.route) {
                 VolunteerProfileScreen(parentNavController, vm)
