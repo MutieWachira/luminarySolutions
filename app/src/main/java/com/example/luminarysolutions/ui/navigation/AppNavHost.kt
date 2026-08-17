@@ -39,8 +39,11 @@ import com.example.luminarysolutions.ui.ceo.ReportsScreen
 import com.example.luminarysolutions.ui.ceo.TeamManagementScreen
 import com.example.luminarysolutions.ui.ceo.VolunteerDetailsScreen
 import com.example.luminarysolutions.ui.client.ClientDashboardScreen
+import com.example.luminarysolutions.ui.client.ClientPersonalDetailsScreen
 import com.example.luminarysolutions.ui.client.ClientProfileScreen
+import com.example.luminarysolutions.ui.client.ClientServiceAcquisitionScreen
 import com.example.luminarysolutions.ui.client.ClientServiceDetailsScreen
+import com.example.luminarysolutions.ui.client.ClientServiceEnquiryScreen
 import com.example.luminarysolutions.ui.client.FreelanceServicesScreen
 import com.example.luminarysolutions.ui.dashboard.LandingDashboardScreen
 import com.example.luminarysolutions.ui.donor.CampaignDetailsScreen
@@ -389,6 +392,26 @@ fun AppNavHost(
 
         composable(Screen.ClientProfile.route) {
             ClientProfileScreen(navController)
+        }
+
+        composable(Screen.ClientPersonalDetails.route) {
+            ClientPersonalDetailsScreen(navController)
+        }
+
+        composable(
+            route = Screen.ClientServiceEnquiry.route,
+            arguments = listOf(navArgument("serviceId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val serviceId = backStackEntry.arguments?.getString("serviceId") ?: ""
+            ClientServiceEnquiryScreen(serviceId = serviceId, navController = navController)
+        }
+
+        composable(
+            route = Screen.ClientServiceAcquisition.route,
+            arguments = listOf(navArgument("serviceId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val serviceId = backStackEntry.arguments?.getString("serviceId") ?: ""
+            ClientServiceAcquisitionScreen(serviceId = serviceId, navController = navController)
         }
 
         composable(

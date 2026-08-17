@@ -30,6 +30,8 @@ class ProjectRepository @Inject constructor(
 
     // Collections
     private fun getLuminaryProjectsCollection() = db.collection("luminary").document("freelances").collection("items")
+    private fun getEnquiriesCollection() = db.collection("luminary").document("enquiries").collection("items")
+    private fun getAcquisitionsCollection() = db.collection("luminary").document("acquisitions").collection("items")
     private fun getProjectsCollection() = db.collection("lumisphere").document("projects").collection("items")
     private fun getPartnersCollection() = db.collection("lumisphere").document("partners").collection("items")
     private fun getEventsCollection() = db.collection("lumisphere").document("events").collection("items")
@@ -396,6 +398,27 @@ class ProjectRepository @Inject constructor(
         }
     }
 
+    /**
+     * Enquiries and Service Acquisitions
+     */
+    suspend fun sendEnquiry(enquiry: com.example.luminarysolutions.data.models.Enquiry): Result<Unit> {
+        return try {
+            getEnquiriesCollection().add(mapFromEnquiry(enquiry)).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun acquireService(acquisition: com.example.luminarysolutions.data.models.ServiceAcquisition): Result<Unit> {
+        return try {
+            getAcquisitionsCollection().add(mapFromAcquisition(acquisition)).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateTaskStatus(projectId: String, taskId: String, isDone: Boolean, isFreelance: Boolean): Result<Unit> {
         return try {
             val collection = if (isFreelance) getLuminaryProjectsCollection() else getProjectsCollection()
@@ -478,6 +501,12 @@ class ProjectRepository @Inject constructor(
             description = doc.getString("description") ?: "",
             category = doc.getString("category") ?: "",
             status = doc.getString("status") ?: "Pending",
+            price = doc.getString("price") ?: "",
+            duration = doc.getString("duration") ?: "",
+            benefits = doc.get("benefits") as? List<String> ?: emptyList(),
+            processSteps = doc.get("processSteps") as? List<String> ?: emptyList(),
+            rating = (doc.get("rating") as? Number)?.toFloat() ?: 5.0f,
+            reviewsCount = (doc.get("reviewsCount") as? Number)?.toInt() ?: 0,
             teamIds = doc.get("teamIds") as? List<String> ?: emptyList(),
             clientIds = doc.get("clientIds") as? List<String> ?: emptyList(),
             tasks = tasks,
@@ -538,5 +567,26 @@ class ProjectRepository @Inject constructor(
         "deadline" to it.deadline,
         "isDone" to it.isDone,
         "createdAt" to it.createdAt
+    )
+
+    private fun mapFromEnquiry(e: com.example.luminarysolutions.data.models.Enquiry) = hashMapOf(
+        "serviceId" to e.serviceId,
+        "serviceName" to e.serviceName,
+        "clientId" to e.clientId,
+        "clientName" to e.clientName,
+        "subject" to e.subject,
+        "message" to e.message,
+        "status" to e.status,
+        "createdAt" to FieldValue.serverTimestamp()
+    )
+
+    private fun mapFromAcquisition(a: com.example.luminarysolutions.data.models.ServiceAcquisition) = hashMapOf(
+        "serviceId" to a.serviceId,
+        "serviceName" to a.serviceName,
+        "clientId" to a.clientId,
+        "clientName" to a.clientName,
+        "price" to a.price,
+        "status" to a.status,
+        "createdAt" to FieldValue.serverTimestamp()
     )
 }

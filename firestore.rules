@@ -151,6 +151,7 @@ service cloud.firestore {
         allow read: if isSignedIn() && (
           isHighLevelAuth() ||
           getUserRole() == 'TEAM' ||
+          (docId == 'freelances' && (getUserRole() == 'CLIENT' || request.auth.uid in resource.data.clientIds)) ||
           request.auth.uid in resource.data.teamIds ||
           request.auth.token.email in resource.data.teamIds
         );

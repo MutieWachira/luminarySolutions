@@ -78,6 +78,47 @@ class AuthRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    /**
+     * Re-authenticates the user with their current password.
+     * Required for sensitive operations like updating password or email.
+     */
+    suspend fun reauthenticate(password: String): Result<Unit> {
+        val user = auth.currentUser ?: return Result.failure(Exception("No user logged in"))
+        val credential = com.google.firebase.auth.EmailAuthProvider.getCredential(user.email!!, password)
+        return try {
+            user.reauthenticate(credential).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Updates the user's password. Requires recent re-authentication.
+     */
+    suspend fun updatePassword(newPassword: String): Result<Unit> {
+        val user = auth.currentUser ?: return Result.failure(Exception("No user logged in"))
+        return try {
+            user.updatePassword(newPassword).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Updates the user's email. Requires recent re-authentication.
+     */
+    suspend fun updateEmail(newEmail: String): Result<Unit> {
+        val user = auth.currentUser ?: return Result.failure(Exception("No user logged in"))
+        return try {
+            user.updateEmail(newEmail).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 sealed class AuthStatus {
