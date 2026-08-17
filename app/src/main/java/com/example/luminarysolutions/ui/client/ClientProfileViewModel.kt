@@ -17,7 +17,9 @@ import javax.inject.Inject
 data class ClientProfileUiState(
     val user: User? = null,
     val isLoading: Boolean = true,
-    val isLoggedOut: Boolean = false
+    val isUpdating: Boolean = false,
+    val isLoggedOut: Boolean = false,
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
@@ -46,8 +48,62 @@ class ClientProfileViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Updates the user's personal information.
+     */
+    fun updateProfile(name: String, phone: String, bio: String) {
+        val currentUser = _uiState.value.user ?: return
+        val updatedUser = currentUser.copy(
+            name = name,
+            phoneNumber = phone,
+            bio = bio
+        )
+        performUpdate(updatedUser)
+    }
+
+    /**
+     * Toggles notification preference.
+     */
+    fun toggleNotifications(enabled: Boolean) {
+        val currentUser = _uiState.value.user ?: return
+        performUpdate(currentUser.copy(notificationsEnabled = enabled))
+    }
+
+    /**
+     * Toggles dark mode preference.
+     */
+    fun toggleDarkMode(enabled: Boolean) {
+        val currentUser = _uiState.value.user ?: return
+        performUpdate(currentUser.copy(darkModeEnabled = enabled))
+    }
+
+    /**
+     * Toggles two-factor authentication preference.
+     */
+    fun toggleTwoFactor(enabled: Boolean) {
+        val currentUser = _uiState.value.user ?: return
+        performUpdate(currentUser.copy(isTwoFactorEnabled = enabled))
+    }
+
+    private fun performUpdate(user: User) {
+        _uiState.update { it.copy(isUpdating = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result = userRepository.updateUserProfile(user)
+            _uiState.update { state ->
+                state.copy(
+                    isUpdating = false,
+                    errorMessage = result.exceptionOrNull()?.localizedMessage
+                )
+            }
+        }
+    }
+
     fun signOut() {
         authRepository.signOut()
         _uiState.update { it.copy(isLoggedOut = true) }
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(errorMessage = null) }
     }
 }

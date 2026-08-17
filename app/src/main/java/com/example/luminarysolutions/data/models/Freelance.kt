@@ -11,6 +11,12 @@ data class Freelance(
     val description: String = "",
     val category: String = "",
     val status: String = "Pending",
+    val price: String = "", // e.g., "$199" or "Starting at $499"
+    val duration: String = "", // e.g., "3-5 business days"
+    val benefits: List<String> = emptyList(), // Bullet points for why to choose this
+    val processSteps: List<String> = emptyList(), // Steps in the service delivery
+    val rating: Float = 5.0f,
+    val reviewsCount: Int = 0,
     val teamIds: List<String> = emptyList(), // Team members assigned by CEO
     val clientIds: List<String> = emptyList(), // Clients who applied for the service
     val tasks: List<Task> = emptyList(),

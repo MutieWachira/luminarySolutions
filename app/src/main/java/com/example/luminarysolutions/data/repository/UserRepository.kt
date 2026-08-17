@@ -19,7 +19,8 @@ import javax.inject.Singleton
 @Singleton
 class UserRepository @Inject constructor(
     private val auth: FirebaseAuth,
-    private val db: FirebaseFirestore
+    private val db: FirebaseFirestore,
+    private val storage: com.google.firebase.storage.FirebaseStorage
 ) {
     private fun getTeamsCollection() = db.collection("luminary").document("teams").collection("items")
 
@@ -182,6 +183,20 @@ class UserRepository @Inject constructor(
             )
             db.collection("users").document(user.id).set(mapFromUser(user)).await()
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Uploads a profile image to Firebase Storage and returns the download URL.
+     */
+    suspend fun uploadProfileImage(userId: String, imageUri: android.net.Uri): Result<String> {
+        return try {
+            val ref = storage.reference.child("profile_images/$userId.jpg")
+            ref.putFile(imageUri).await()
+            val url = ref.downloadUrl.await().toString()
+            Result.success(url)
         } catch (e: Exception) {
             Result.failure(e)
         }
